@@ -1,7 +1,9 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Cache.TimeCache.Server where
+module Cache.TimeCache.Server
+    ( httpServer
+    ) where
 
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils

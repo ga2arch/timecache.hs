@@ -1,6 +1,8 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Cache.TimeCache.Worker where
+module Cache.TimeCache.Worker
+    ( startWorker
+    ) where
 
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils

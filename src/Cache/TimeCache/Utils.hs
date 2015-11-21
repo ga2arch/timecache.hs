@@ -1,6 +1,10 @@
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Cache.TimeCache.Utils where
+module Cache.TimeCache.Utils
+    ( insertEntry
+    , runDb
+    , send
+    ) where
 
 import           Control.Concurrent.MVar
 import           Control.Monad.Logger
