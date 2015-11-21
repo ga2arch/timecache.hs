@@ -17,9 +17,9 @@ import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
 
-insertEntry mh next value = modifyMVar_ mh $ \h -> do
-    let bucket = H.lookupDefault [] next h
-    return $ H.insert next (value:bucket) h
+insertEntry mh time value = modifyMVar_ mh $ \h -> do
+    let bucket = H.lookupDefault [] time h
+    return $ H.insert time (value:bucket) h
 
 runDb pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
 
@@ -32,6 +32,7 @@ send url value = do
     ,   requestBody = RequestBodyLBS $ cs value
     }
 
+    putStrLn $ "Evicting: " ++ (cs value)
     response <- httpLbs request manager
     putStrLn $ "The status code was: "
         ++ show (statusCode $ responseStatus response)

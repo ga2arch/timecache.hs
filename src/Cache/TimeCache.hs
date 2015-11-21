@@ -11,6 +11,7 @@ import           Cache.TimeCache.Utils
 import           Cache.TimeCache.Worker
 import           Control.Concurrent
 import           Control.Concurrent.MVar
+import           Control.Monad
 import           Control.Monad.Logger
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
@@ -24,5 +25,12 @@ runTimeCache = do
     mhook <- newEmptyMVar
     pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
 
-    startWorker mh mhook pool
+    runDb pool $ runMigration migrateTables
+    hook <- runDb pool $ select $ from $
+        \(t :: SqlExpr (Entity Webhook)) -> return t
+
+    when (not $ null hook) $
+        putMVar mhook $ webhookEndpoint . entityVal . head $ hook
+
+    --startWorker mh mhook pool
     httpServer  mh mhook pool
