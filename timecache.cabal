@@ -16,6 +16,8 @@ executable timecache
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010
+  other-modules:       Cache.TimeCache, Cache.TimeCache.Types,
+                       Cache.TimeCache.Utils, Cache.TimeCache.Worker
   build-depends:       base >= 4.7 && < 5, streaming-commons, bytestring,
                        transformers, unordered-containers, time, hashable,
                        async, persistent, persistent-sqlite,
