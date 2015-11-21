@@ -6,9 +6,9 @@ module Cache.TimeCache.Server
     ) where
 
 import           Cache.TimeCache.Types
-import           Cache.TimeCache.Utils
+import           Cache.TimeCache.Utils     
 import           Control.Concurrent.MVar
-import           Control.Monad.IO.Class
+import           Control.Monad.IO.Class    (liftIO)
 import           Database.Esqueleto
 import           Network.HTTP.Types.Status (status200)
 import qualified Web.Scotty                as SC

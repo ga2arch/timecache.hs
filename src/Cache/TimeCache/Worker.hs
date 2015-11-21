@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ScopedTypeVariables, LambdaCase #-}
 module Cache.TimeCache.Worker
     ( startWorker
     ) where
@@ -48,7 +48,7 @@ worker mh pool mhook = do
             Just (Webhook url) -> send url value
             Nothing            -> return ()
 
-restoreEntries h pool = do
+restoreEntries mh pool mhook = do
     entries <- runDb pool $ select $ from return
     mapM_ (\x -> do
         now <- round <$> getPOSIXTime
@@ -56,7 +56,11 @@ restoreEntries h pool = do
         let time  = timeEntryTimestamp $ entityVal x
             value = timeEntryValue     $ entityVal x
 
-        when (time >= now) $ insertEntry h time value) entries
+        if (time >= now)
+            then insertEntry mh time value
+            else tryReadMVar mhook >>= \case
+                Just url -> send value url
+                Nothing  -> return ()) entries
 
 startWorker mh mhook pool = do
     runDb pool $ runMigration migrateTables
@@ -67,5 +71,5 @@ startWorker mh mhook pool = do
         then putMVar mhook Nothing
         else putMVar mhook $ Just $ entityVal . head $ hook
 
-    restoreEntries mh pool
+    restoreEntries mh pool mhook
     async $ worker mh pool mhook

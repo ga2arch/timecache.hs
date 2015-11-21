@@ -20,10 +20,9 @@ import           Database.Persist.Sqlite      (createSqlitePool)
 
 runTimeCache :: IO ()
 runTimeCache = do
-    mh <- newMVar H.empty
+    mh    <- newMVar H.empty
     mhook <- newEmptyMVar
-
-    pool <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
+    pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
 
     startWorker mh mhook pool
-    httpServer mh mhook pool
+    httpServer  mh mhook pool
