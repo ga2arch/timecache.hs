@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE FlexibleContexts           #-}
 {-# LANGUAGE GADTs                      #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
@@ -17,55 +18,66 @@ import           Control.Monad.IO.Class
 import           Control.Monad.Logger
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
+import           Data.Aeson                   (FromJSON, ToJSON, encode)
 import           Data.ByteString              (ByteString)
 import           Data.Hashable                (Hashable)
 import           Data.Monoid
 import           Data.Pool                    (Pool)
 import           Data.Streaming.Network
-import           Data.Text                    (Text)
+import           Data.String.Conversions
+import           Data.Text                    (Text, unpack)
+import           Data.Text.Encoding           (decodeUtf8, encodeUtf8)
+import           Network.HTTP.Client
+
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
 import           Database.Persist             (selectList)
 import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
 import           Database.Persist.TH
+import           GHC.Generics                 (Generic)
+import           Network.HTTP.Types.Status
 
 import qualified Data.ByteString.Char8        as C
 import qualified Data.HashMap.Strict          as H
-
-data Result = Done
-            | Entry !ByteString !Int
-            | Error !ByteString
-    deriving (Show)
+import qualified Web.Scotty                   as SC
 
 share [mkPersist sqlSettings, mkMigrate "migrateTables"] [persistLowerCase|
+Webhook
+    endpoint Text
+    deriving Show
+
 TimeEntry
-   value     ByteString
+   value     Text
    timestamp Int
 
    deriving Show
+   deriving Generic
 |]
+
+instance ToJSON   TimeEntry
+instance FromJSON TimeEntry
 
 insertEntry mh next value = modifyMVar_ mh $ \h -> do
     let bucket = H.lookupDefault [] next h
     return $ H.insert next (value:bucket) h
 
-strategy :: MVar (H.HashMap Int [ByteString])
+strategy :: MVar (H.HashMap Int [Text])
         -> Pool SqlBackend
-        -> t
-        -> ByteString
+        -> Text
         -> Int
         -> IO ()
-strategy mh pool ad value time = do
+strategy mh pool value time = do
     current <- round <$> getPOSIXTime
     let next = current + time
     runDb pool $ insert $ TimeEntry value next
 
     insertEntry mh next value
 
-worker :: MVar (H.HashMap Int [ByteString])
+worker :: MVar (H.HashMap Int [Text])
         -> Pool SqlBackend
+        -> MVar (Maybe Webhook)
         -> IO ()
-worker mh pool = do
+worker mh pool mhook = do
     now <- round <$> getPOSIXTime
     mapM_ handle $ iterate (+1) now
 
@@ -80,53 +92,50 @@ worker mh pool = do
 
     f h current bucket = do
         async $ do
-            mapM_ (\x ->
-                print $ show x <> "timed out") bucket
+            mapM_ process bucket
 
             runDb pool $ delete $ from $ \t ->
                 where_ (t ^. TimeEntryTimestamp ==. val current)
 
         return $ H.delete current h
 
-tcpServer action = runTCPServer (serverSettingsTCP 8080 "*") app
-  where
-    app ad = do
-        bs <- appRead ad
-        print $ "Received: " ++ show bs
+    process value = do
+        hook <- readMVar mhook
+        case hook of
+            Just (Webhook url) -> send url value
+            Nothing            -> return ()
 
-        case handle bs ad of
-            Entry value time -> do
-                appWrite ad "Ok\n"
-                action ad value time
-                app ad
+    send url value = do
+        manager <- newManager defaultManagerSettings
+        initialRequest <- parseUrl $ unpack url
 
-            Done    -> appCloseConnection ad
-            Error m -> do
-                appWrite ad $ m <> "\n"
-                app ad
+        let request = initialRequest {
+            method = "POST"
+        ,   requestBody = RequestBodyLBS $ cs value
+        }
 
-    handle d ad =
-        if d == "done\r\n"
-            then Done
-            else case C.words d of
-                    (x:xs:_) -> mkEntry x xs
-                    _        -> Error "Invalid"
+        response <- httpLbs request manager
+        putStrLn $ "The status code was: "
+            ++ show (statusCode $ responseStatus response)
 
-    mkEntry value rest =
-        case C.readInt rest of
-            Just (t, _) -> Entry value t
-            Nothing     -> Error "Invalid"
+httpServer h mhook pool strategy = SC.scotty 8080 $ do
+    SC.post "/" $ do
+        TimeEntry value time <- SC.jsonData :: SC.ActionM TimeEntry
+        liftIO $ strategy h pool value time
+        SC.status status200
 
-runDb conn f = runResourceT $ runNoLoggingT $ runSqlPool f conn
+    SC.get "/setWebhook" $ do
+        hook <- SC.param "hook"
+        runDb pool $ do
+            delete $ from $ \(t :: SqlExpr (Entity Webhook)) -> return ()
+            insert $ Webhook hook
+            liftIO $ swapMVar mhook $ Just $ Webhook hook
+        SC.status status200
 
-main :: IO ()
-main = do
-    h <- newMVar H.empty
+runDb pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-    pool <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
-    runDb pool $ runMigration migrateTables
-    entries <- runDb pool $ select $ from $ \t -> return t
-
+restoreEntries h pool = do
+    entries <- runDb pool $ select $ from return
     mapM_ (\x -> do
         now <- round <$> getPOSIXTime
 
@@ -135,5 +144,24 @@ main = do
 
         when (time >= now) $ insertEntry h time value) entries
 
-    async $ worker h pool
-    tcpServer $ strategy h pool
+startWorker mh mhook pool = do
+    runDb pool $ runMigration migrateTables
+    hook <- runDb pool $ select $ from $
+        \(t :: SqlExpr (Entity Webhook)) -> return t
+
+    if null hook
+        then putMVar mhook Nothing
+        else putMVar mhook $ Just $ entityVal . head $ hook
+
+    restoreEntries mh pool
+    async $ worker mh pool mhook
+
+main :: IO ()
+main = do
+    mh <- newMVar H.empty
+    mhook <- newEmptyMVar
+
+    pool <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
+
+    liftIO $ startWorker mh mhook pool
+    httpServer mh mhook pool strategy
