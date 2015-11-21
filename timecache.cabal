@@ -18,4 +18,6 @@ executable timecache
   default-language:    Haskell2010
   build-depends:       base >= 4.7 && < 5, streaming-commons, bytestring,
                        transformers, unordered-containers, time, hashable,
-                       async
+                       async, persistent, persistent-sqlite,
+                       persistent-template, esqueleto, text, monad-logger,
+                       mtl, resourcet, resource-pool
