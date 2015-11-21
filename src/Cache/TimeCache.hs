@@ -25,12 +25,6 @@ runTimeCache = do
     mhook <- newEmptyMVar
     pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
 
-    runDb pool $ runMigration migrateTables
-    hook <- runDb pool $ select $ from $
-        \(t :: SqlExpr (Entity Webhook)) -> return t
-
-    when (not $ null hook) $
-        putMVar mhook $ webhookEndpoint . entityVal . head $ hook
-
-    --startWorker mh mhook pool
+    
+    startWorker mh mhook pool
     httpServer  mh mhook pool

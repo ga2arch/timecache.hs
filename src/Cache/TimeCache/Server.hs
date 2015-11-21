@@ -24,14 +24,7 @@ httpServer mh mhook pool = SC.scotty 8080 $ do
         TimeEntry value time <- SC.jsonData :: SC.ActionM TimeEntry
         liftIO $ do
             runDb pool $ insert $ TimeEntry value time
-            --insertEntry mh time value
-            async $ do
-                now <- round <$> getPOSIXTime
-
-                threadDelay $ (time - now) * 10^6
-                tryReadMVar mhook >>= \case
-                    Just url -> send url value
-                    Nothing  -> return ()
+            insertEntry mh time value
 
         SC.status status200
 

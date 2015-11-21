@@ -13,14 +13,22 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 executable timecache
+  ghc-options:
+        -O3
+        -threaded
+        -rtsopts
+        "-with-rtsopts=-N4 -s"
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010
+
   other-modules:       Cache.TimeCache, Cache.TimeCache.Types,
-                       Cache.TimeCache.Utils, Cache.TimeCache.Worker
+                       Cache.TimeCache.Utils, Cache.TimeCache.Worker,
+                       Cache.TimeCache.Server
+
   build-depends:       base >= 4.7 && < 5, streaming-commons, bytestring,
                        transformers, unordered-containers, time, hashable,
                        async, persistent, persistent-sqlite,
                        persistent-template, esqueleto, text, monad-logger,
                        mtl, resourcet, resource-pool, scotty, aeson, http-types,
-                       http-client, string-conversions
+                       http-client, string-conversions, unix

@@ -16,6 +16,7 @@ import           Data.Pool                (Pool)
 import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
+import           System.Posix.Unistd
 
 worker :: MVar (H.HashMap Int [Text])
         -> Pool SqlBackend
@@ -33,7 +34,7 @@ worker mh pool mhook = do
                   (f h current)
                   (H.lookup current h)
 
-        threadDelay $ 1 * 10^6
+        usleep $ 1 * 10^6
 
     f h current bucket = do
         mapM_ process bucket
@@ -58,7 +59,7 @@ restoreEntries mh pool mhook = do
 
         when (time >= now) $
             insertEntry mh time value) entries
-            
+
 startWorker mh mhook pool = do
     runDb pool $ runMigration migrateTables
     hook <- runDb pool $ select $ from $
