@@ -3,6 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Cache.TimeCache.Worker
     ( startWorker
+    , loadHook
     ) where
 
 import           Cache.TimeCache.Types
@@ -20,7 +21,7 @@ import           System.Posix.Unistd
 
 worker :: MVar (H.HashMap Int [Text])
         -> Pool SqlBackend
-        -> MVar Text
+        -> MVar (Maybe Webhook)
         -> IO ()
 worker mh pool mhook = do
     now <- round <$> getPOSIXTime
@@ -45,28 +46,12 @@ worker mh pool mhook = do
         return $ H.delete current h
 
     process value =
-        tryReadMVar mhook >>= \case
-            Just url -> send url value
-            Nothing  -> return ()
-
-restoreEntries mh pool mhook = do
-    entries <- runDb pool $ select $ from return
-    mapM_ (\x -> do
-        now <- round <$> getPOSIXTime
-
-        let time  = timeEntryTimestamp $ entityVal x
-            value = timeEntryValue     $ entityVal x
-
-        when (time >= now) $
-            insertEntry mh time value) entries
+        readMVar mhook >>= \case
+            Just (Webhook url) -> send url value
+            Nothing            -> return ()
 
 startWorker mh mhook pool = do
     runDb pool $ runMigration migrateTables
-    hook <- runDb pool $ select $ from $
-        \(t :: SqlExpr (Entity Webhook)) -> return t
-
-    when (not $ null hook) $
-        putMVar mhook $ webhookEndpoint . entityVal . head $ hook
 
     restoreEntries mh pool mhook
     async $ worker mh pool mhook

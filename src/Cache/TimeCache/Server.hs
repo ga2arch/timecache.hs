@@ -21,10 +21,10 @@ import qualified Web.Scotty                as SC
 
 httpServer mh mhook pool = SC.scotty 8080 $ do
     SC.post "/" $ do
-        TimeEntry value time <- SC.jsonData :: SC.ActionM TimeEntry
+        entry <- SC.jsonData :: SC.ActionM TimeEntry
         liftIO $ do
-            runDb pool $ insert $ TimeEntry value time
-            insertEntry mh time value
+            runDb pool $ insert entry
+            insertEntry mh entry
 
         SC.status status200
 
@@ -34,8 +34,5 @@ httpServer mh mhook pool = SC.scotty 8080 $ do
             delete $ from $ \(t :: SqlExpr (Entity Webhook)) -> return ()
             insert $ Webhook hook
 
-        liftIO $ tryReadMVar mhook >>= \case
-            Just _  -> void $ swapMVar mhook hook
-            Nothing -> putMVar  mhook hook
-
+        liftIO $ swapMVar mhook $ Just $ Webhook hook
         SC.status status200

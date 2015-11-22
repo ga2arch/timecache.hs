@@ -22,9 +22,8 @@ import           Database.Persist.Sqlite      (createSqlitePool)
 runTimeCache :: IO ()
 runTimeCache = do
     mh    <- newMVar H.empty
-    mhook <- newEmptyMVar
+    mhook <- newMVar Nothing
     pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
 
-    
     startWorker mh mhook pool
     httpServer  mh mhook pool
