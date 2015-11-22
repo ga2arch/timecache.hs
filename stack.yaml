@@ -32,5 +32,3 @@ image:
   container:
     base: "fpco/haskell-scratch:integer-gmp"
     name: "ga2arch/timecache"
-    entrypoints:
-      - .stack-work/install/x86_64-linux/nightly-2015-11-22/7.10.2/bin/timecache
