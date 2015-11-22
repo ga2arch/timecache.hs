@@ -48,8 +48,4 @@ worker mh pool mhook = do
     process value = awhenM (readMVar mhook) $
         \(Webhook url) -> send url value
 
-startWorker mh mhook pool = do
-    runDb pool $ runMigration migrateTables
-
-    restoreEntries mh pool mhook
-    async $ worker mh pool mhook
+startWorker mh mhook pool = async $ worker mh pool mhook

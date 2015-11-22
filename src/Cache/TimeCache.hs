@@ -23,8 +23,10 @@ runTimeCache :: IO ()
 runTimeCache = do
     mh    <- newMVar H.empty
     mhook <- newMVar Nothing
-    pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
 
-    loadHook mhook pool
+    pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
+    runDb pool $ runMigration migrateTables
+
+    loadHook       mhook pool
     startWorker mh mhook pool
     httpServer  mh mhook pool

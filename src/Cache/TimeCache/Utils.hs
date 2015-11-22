@@ -5,7 +5,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache.Utils
     ( insertEntry
-    , restoreEntries
+    , loadEntries
     , loadHook
     , runDb
     , send
@@ -41,7 +41,7 @@ insertEntry mh (TimeEntry value time) = modifyMVar_ mh $ \h -> do
 
 runDb pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-restoreEntries mh pool mhook = do
+loadEntries mh pool mhook = do
     entries <- runDb pool $ select $ from return
     mapM_ f entries
   where
