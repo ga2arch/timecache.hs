@@ -26,6 +26,7 @@ import           Database.Esqueleto
 import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
+import qualified Control.Exception as E
 
 -- | Chainable anaphoric whenM.
 awhenM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
@@ -50,11 +51,11 @@ restoreEntries mh pool mhook = do
         if time >= now
             then insertEntry mh entry
             else do
-                runDb pool $ delete $ from $ \t ->
-                    where_ (t ^. TimeEntryTimestamp ==. val time)
-
                 awhenM (readMVar mhook) $
                     \(Webhook url) -> send url value
+
+                runDb pool $ delete $ from $ \t ->
+                    where_ (t ^. TimeEntryTimestamp ==. val time)
 
 loadHook mhook pool = do
     hook <- runDb pool $ select $ from $
@@ -72,7 +73,9 @@ send url value = do
     ,   requestBody = RequestBodyLBS $ cs value
     }
 
-    putStrLn $ "Evicting: " ++ (cs value)
-    response <- httpLbs request manager
-    putStrLn $ "The status code was: "
-        ++ show (statusCode $ responseStatus response)
+    putStr $ "Evicting: " ++ (cs value) ++ " ... "
+    response <- E.try $ httpLbs request manager
+
+    case response of
+        Right _ -> putStrLn " Ok."
+        Left (ex :: HttpException) -> putStrLn " Fail."

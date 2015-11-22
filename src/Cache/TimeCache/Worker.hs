@@ -29,8 +29,7 @@ worker mh pool mhook = do
 
   where
     handle current = do
-        print $ show current
-        async $ modifyMVar_ mh $ \h ->
+        modifyMVar_ mh $ \h ->
             maybe (return h)
                   (f h current)
                   (H.lookup current h)
@@ -38,10 +37,11 @@ worker mh pool mhook = do
         usleep $ 1 * 10^6
 
     f h current bucket = do
-        mapM_ process bucket
+        async $ do
+            mapM_ process bucket
 
-        runDb pool $ delete $ from $ \t ->
-            where_ (t ^. TimeEntryTimestamp ==. val current)
+            runDb pool $ delete $ from $ \t ->
+                where_ (t ^. TimeEntryTimestamp ==. val current)
 
         return $ H.delete current h
 

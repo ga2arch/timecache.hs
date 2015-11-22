@@ -25,5 +25,6 @@ runTimeCache = do
     mhook <- newMVar Nothing
     pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
 
+    loadHook mhook pool
     startWorker mh mhook pool
     httpServer  mh mhook pool
