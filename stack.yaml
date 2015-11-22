@@ -30,5 +30,5 @@ flags: {}
 
 image:
   container:
-    base: "fpco/haskell-scratch:integer-gmp"
+    base: "fpco/ubuntu-with-libgmp:14.04"
     name: "ga2arch/timecache"
