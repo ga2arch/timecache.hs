@@ -24,6 +24,8 @@ before_install:
 - mkdir -p ~/.local/bin
 - export PATH=$HOME/.local/bin:$PATH
 - travis_retry curl -L https://www.stackage.org/stack/linux-x86_64 | tar xz --wildcards --strip-components=1 -C ~/.local/bin '*/stack'
+- docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+- docker pull fpco/ubuntu-with-libgmp:14.04
 
 # This line does all of the work: installs GHC if necessary, build the library,
 # executables, and test suites, and runs the test suites. --no-terminal works
@@ -36,12 +38,12 @@ cache:
   - $HOME/.stack
 
 before_deploy:
-- upx .stack-work/install/x86_64-linux/nightly-2015-11-22/7.10.2/bin/timecache
-- docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-- docker pull fpco/ubuntu-with-libgmp:14.04
+- upx ~/.local/bin/timecache
 - stack image container
 - docker push ga2arch/timecache
-- sudo gem install mime-types -v 2.6.2
+
+- rvm use ruby-2.2.3
+- gem install mime-types -v 2.6.2
 
 deploy:
   skip_cleanup: true
