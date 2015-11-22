@@ -28,7 +28,7 @@ before_install:
 # This line does all of the work: installs GHC if necessary, build the library,
 # executables, and test suites, and runs the test suites. --no-terminal works
 # around some quirks in Travis's terminal implementation.
-script: stack $ARGS install --no-terminal --install-ghc
+script: stack $ARGS --no-terminal --install-ghc test --haddock; stack install
 
 # Caching so the next build will be fast too.
 cache:
@@ -38,7 +38,7 @@ cache:
 before_deploy:
 - upx ~/.local/bin/timecache
 - docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-- docker pull fpco/ubuntu-with-libgmp:14.04
+- docker pull fpco/haskell-scratch:integer-gmp
 - stack image container
 - docker push ga2arch/timecache
 - rvm 1.9.3 do gem install mime-types -v 2.6.2
@@ -49,7 +49,7 @@ deploy:
   api_key:
       secure: "HAI8NYyY1BUESKqV22m5jWEiTbD5UDVrisbhZv1vv0ILPyZdDkS759nhWtIc5/OuYOpa7eRDKC+p7sDNZDSjIrOGpFRfxr+0cvfcklCnmuAYwmsaE2YuNQ2dB0+yvZMv5Niv6n1XKf3t6bWiq8FomgUNuinT7EKmZ3KW2ah6sIo4zwb/m+i0tx2pkQnKfUItRLEqw/yBWllIyIzEafcKsPHNiZdB/gRe5EmYXK8UqpWaCByoQWeKR9MHG3+wWuZzkQUERBDVEPwwUB8HKTpSqWr+kcSnS+fyOBhVCWEmAag+p9CXvA3pCIsW78wKgC84yj3/ltd7unzrif3De8NUt/gRWm0qRXualjfQnikFW5gAgVo0X2PzaaKnH/xt417t/5w1jw2p5dtOOOkEyX5LDuiezQFTukeKQe5jnyPX36do9scf+f0+h5vwvYu2cc4scokGupDxN33usScOqoYYHGchounOJTKinPJIiHtCAM9kNuLXVeFIPqXPAHJ5AJw5DGPnd+5TKtXsoskdHtjqy0YVESl5fKShC+oi39v3phqpZOllbph/T2pw9HcawaXVIT0a/sBRS33v+FSgawW3DQ+zmeLut8pGiQb2Rho5JLY5rrzwNps5c4CrhUP+GiFzgb5bWuoELRB9179YxOvE1k1QuF3p5uE+PSFKHXMqE6Q="
   file:
-    - "~/.local/bin/timecache"
+    - "/home/travis/.local/bin/timecache"
   on:
     tags: true
 
