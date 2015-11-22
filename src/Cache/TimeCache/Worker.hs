@@ -45,10 +45,8 @@ worker mh pool mhook = do
 
         return $ H.delete current h
 
-    process value =
-        readMVar mhook >>= \case
-            Just (Webhook url) -> send url value
-            Nothing            -> return ()
+    process value = awhenM (readMVar mhook) $
+        \(Webhook url) -> send url value
 
 startWorker mh mhook pool = do
     runDb pool $ runMigration migrateTables

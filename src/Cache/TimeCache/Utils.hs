@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
@@ -8,6 +9,7 @@ module Cache.TimeCache.Utils
     , loadHook
     , runDb
     , send
+    , awhenM
     ) where
 
 import           Cache.TimeCache.Types
@@ -25,6 +27,13 @@ import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
 
+-- | Chainable anaphoric whenM.
+awhenM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
+awhenM test action =
+    test >>= \case
+        Just x  -> action x
+        Nothing -> return ()
+
 insertEntry mh (TimeEntry value time) = modifyMVar_ mh $ \h -> do
     let bucket = H.lookupDefault [] time h
     return $ H.insert time (value:bucket) h
@@ -35,11 +44,17 @@ restoreEntries mh pool mhook = do
     entries <- runDb pool $ select $ from return
     mapM_ f entries
   where
-    f (entityVal -> entry) = do
+    f (entityVal -> entry@(TimeEntry value time)) = do
         now <- round <$> getPOSIXTime
 
-        when (timeEntryTimestamp entry >= now) $
-            insertEntry mh entry
+        if time >= now
+            then insertEntry mh entry
+            else do
+                runDb pool $ delete $ from $ \t ->
+                    where_ (t ^. TimeEntryTimestamp ==. val time)
+
+                awhenM (readMVar mhook) $
+                    \(Webhook url) -> send url value
 
 loadHook mhook pool = do
     hook <- runDb pool $ select $ from $
