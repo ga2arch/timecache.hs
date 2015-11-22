@@ -11,6 +11,9 @@ addons:
     - libgmp-dev
     - upx-ucl
 
+services:
+  - docker
+
 # The different configurations we want to test. You could also do things like
 # change flags or use --stack-yaml to point to a different file.
 env:
@@ -35,6 +38,10 @@ cache:
 before_deploy:
 - gem install mime-types -v 2.6.2
 - upx .stack-work/install/x86_64-linux/nightly-2015-11-22/7.10.2/bin/timecache
+- stack image container
+- docker ps
+- docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+- docker push ga2arch/timecache
 
 deploy:
   skip_cleanup: true
