@@ -14,10 +14,11 @@ cabal-version:       >=1.10
 
 executable timecache
   ghc-options:
-        -O3
+        -O2
         -threaded
         -rtsopts
         "-with-rtsopts=-N4 -s"
+        -static -optl-static
   hs-source-dirs:      src
   main-is:             Main.hs
   default-language:    Haskell2010

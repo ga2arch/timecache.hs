@@ -27,3 +27,10 @@ flags: {}
 # Extra directories used by stack for building
 # extra-include-dirs: [/path/to/dir]
 # extra-lib-dirs: [/path/to/dir]
+
+image:
+  container:
+    base: "fpco/haskell-scratch:integer-gmp"
+    name: "ga2arch/timecache"
+    entrypoints:
+     - timecache
