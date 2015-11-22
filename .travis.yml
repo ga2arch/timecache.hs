@@ -38,9 +38,10 @@ cache:
 before_deploy:
 - gem install mime-types -v 2.6.2
 - upx .stack-work/install/x86_64-linux/nightly-2015-11-22/7.10.2/bin/timecache
-- stack image container
-- docker ps
 - docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+- docker images
+- docker ps
+- stack image container
 - docker push ga2arch/timecache
 
 deploy:
