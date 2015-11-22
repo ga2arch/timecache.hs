@@ -14,8 +14,8 @@ Make a post request to ```http://localhost:8080/``` with json document of form:
 
 ```json
 {
-  "timeEntryValue":     "data"
-, "timeEntryTimestamp": 1448198760
+  "value":     "data"
+, "timestamp": 1448198760
 }
 ```
 
