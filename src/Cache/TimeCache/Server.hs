@@ -19,14 +19,24 @@ import           Network.HTTP.Types.Status (status200)
 
 import qualified Web.Scotty                as SC
 
-httpServer mh mhook pool = SC.scotty 8080 $ do
-    SC.post "/" $ do
+httpServer mhook pool = SC.scotty 8080 $ do
+    SC.post "/insert" $ do
         entry <- SC.jsonData :: SC.ActionM TimeEntry
         liftIO $ do
+            putStrLn $ "Inserting: " ++ show entry
             runDb pool $ insert entry
-            insertEntry mh entry
 
         SC.status status200
+
+    SC.post "/update" $ do
+        TimeEntry key value time <- SC.jsonData :: SC.ActionM TimeEntry
+        liftIO $ do
+            putStrLn $ "Updating: " ++ show key
+            runDb pool $
+                update $ \t -> do
+                    set t [TimeEntryValue     =. val value, 
+                           TimeEntryTimestamp =. val time]
+                    where_ (t ^. TimeEntryKey ==. val key)
 
     SC.get "/setWebhook" $ do
         hook <- SC.param "hook"

@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache.Worker
     ( startWorker
     , loadHook
@@ -12,40 +13,34 @@ import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.Monad
-import qualified Data.HashMap.Strict      as H
 import           Data.Pool                (Pool)
 import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
 import           System.Posix.Unistd
 
-worker :: MVar (H.HashMap Int [Text])
-        -> Pool SqlBackend
-        -> MVar (Maybe Webhook)
-        -> IO ()
-worker mh pool mhook = do
+worker :: Pool SqlBackend -> MVar (Maybe Webhook) -> IO ()
+worker pool mhook = do
     now <- round <$> getPOSIXTime
-    mapM_ handle $ iterate (+1) now
+    mapM_ handle $ iterate (\(_,y) -> (y, y+1)) (now, now)
 
   where
-    handle current = do
-        modifyMVar_ mh $ \h ->
-            maybe (return h)
-                  (f h current)
-                  (H.lookup current h)
+    handle (old, current) = do
+        async $ do
+            entries <- runDb pool $ select $ from $ \t -> do
+                where_ (t ^. TimeEntryTimestamp <=. val current)
+                where_ (t ^. TimeEntryTimestamp >=. val old)
+                return t
+
+            mapM_ process entries
 
         usleep $ 1 * 10^6
 
-    f h current bucket = do
-        async $ do
-            mapM_ process bucket
+    process (entityVal -> TimeEntry _ value time) =
+        awhenM (readMVar mhook) $
+            \(Webhook url) -> do
+                send url value
+                runDb pool $ delete $ from $ \t ->
+                    where_ (t ^. TimeEntryTimestamp ==. val time)
 
-            runDb pool $ delete $ from $ \t ->
-                where_ (t ^. TimeEntryTimestamp ==. val current)
-
-        return $ H.delete current h
-
-    process value = awhenM (readMVar mhook) $
-        \(Webhook url) -> send url value
-
-startWorker mh mhook pool = async $ worker mh pool mhook
+startWorker mhook pool = async $ worker pool mhook

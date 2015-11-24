@@ -21,12 +21,12 @@ import           Database.Persist.Sqlite      (createSqlitePool)
 
 runTimeCache :: IO ()
 runTimeCache = do
-    mh    <- newMVar H.empty
     mhook <- newMVar Nothing
 
     pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
     runDb pool $ runMigration migrateTables
 
-    loadHook       mhook pool
-    startWorker mh mhook pool
-    httpServer  mh mhook pool
+    loadHook        mhook pool
+    evictOldEntries mhook pool
+    startWorker     mhook pool
+    httpServer      mhook pool

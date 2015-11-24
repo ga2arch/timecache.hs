@@ -21,6 +21,7 @@ Webhook
     deriving Show
 
 TimeEntry
+   key       Text
    value     Text
    timestamp Int
 
@@ -31,6 +32,7 @@ TimeEntry
 instance ToJSON   TimeEntry
 instance FromJSON TimeEntry where
     parseJSON (Object v) = TimeEntry <$>
+                          v .: "key"   <*>
                           v .: "value" <*>
                           v .: "timestamp"
     parseJSON _          = mempty

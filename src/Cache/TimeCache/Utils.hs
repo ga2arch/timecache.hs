@@ -5,7 +5,7 @@
 {-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache.Utils
     ( insertEntry
-    , loadEntries
+    , evictOldEntries
     , loadHook
     , runDb
     , send
@@ -35,27 +35,25 @@ awhenM test action =
         Just x  -> action x
         Nothing -> return ()
 
-insertEntry mh (TimeEntry value time) = modifyMVar_ mh $ \h -> do
+insertEntry mh (TimeEntry key value time) = modifyMVar_ mh $ \h -> do
     let bucket = H.lookupDefault [] time h
     return $ H.insert time (value:bucket) h
 
 runDb pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-loadEntries mh pool mhook = do
+evictOldEntries mhook pool = do
     entries <- runDb pool $ select $ from return
     mapM_ f entries
   where
-    f (entityVal -> entry@(TimeEntry value time)) = do
+    f (entityVal -> entry@(TimeEntry key value time)) = do
         now <- round <$> getPOSIXTime
 
-        if time >= now
-            then insertEntry mh entry
-            else do
-                awhenM (readMVar mhook) $
-                    \(Webhook url) -> send url value
-
-                runDb pool $ delete $ from $ \t ->
-                    where_ (t ^. TimeEntryTimestamp ==. val time)
+        when (time <= now) $
+            awhenM (readMVar mhook) $
+                \(Webhook url) -> do
+                    send url value
+                    runDb pool $ delete $ from $ \t ->
+                        where_ (t ^. TimeEntryTimestamp ==. val time)
 
 loadHook mhook pool = do
     hook <- runDb pool $ select $ from $
