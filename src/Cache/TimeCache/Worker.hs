@@ -21,20 +21,25 @@ import           System.Posix.Unistd
 
 worker :: Pool SqlBackend -> MVar (Maybe Webhook) -> IO ()
 worker pool mhook = do
-    now <- round <$> getPOSIXTime
-    mapM_ handle $ iterate (\(_,y) -> (y, y+1)) (now, now)
+    since <- round <$> getPOSIXTime
+    handle since (since-1) since
 
   where
-    handle (old, current) = do
+    handle since before now = do
         async $ do
             entries <- runDb pool $ select $ from $ \t -> do
-                where_ (t ^. TimeEntryTimestamp <=. val current)
-                where_ (t ^. TimeEntryTimestamp >=. val old)
+                where_ (t ^. TimeEntryTimestamp <=. val now)
+                where_ (t ^. TimeEntryTimestamp >=. val before)
                 return t
 
             mapM_ process entries
 
         usleep $ 1 * 10^6
+        if (now - since > 60)
+            then do
+                since <- round <$> getPOSIXTime
+                handle since (since-1) since
+            else handle since now (now + 1)
 
     process (entityVal -> TimeEntry _ value time) =
         awhenM (readMVar mhook) $
