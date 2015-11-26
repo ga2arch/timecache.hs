@@ -55,12 +55,8 @@ evictOldEntries mhook pool = do
                     runDb pool $ delete $ from $ \t ->
                         where_ (t ^. TimeEntryTimestamp ==. val time)
 
-loadHook mhook pool = do
-    hook <- runDb pool $ select $ from $
-        \(t :: SqlExpr (Entity Webhook)) -> return t
-
-    when (not $ null hook) $
-        void $ swapMVar mhook $ Just . entityVal . head $ hook
+loadHook mhook pool =
+    swapMVar mhook $ Just "http://104.197.125.254:8000/expiration"
 
 send url value = do
     manager <- newManager defaultManagerSettings
