@@ -3,8 +3,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache.Worker
-    ( startWorker
-    , loadHook
+    ( worker
     ) where
 
 import           Cache.TimeCache.Types
@@ -13,36 +12,36 @@ import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.Monad
+import           Control.Monad.Reader
 import           Data.Pool                (Pool)
 import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
+import           System.Clock
 import           System.Posix.Unistd
-import System.Clock
 
-worker :: Pool SqlBackend -> MVar (Maybe Webhook) -> IO ()
-worker pool mhook = do
-    now <- round <$> getPOSIXTime
-    handle (now-1) now
+worker :: TimeCache ()
+worker = do
+    config <- ask
+
+    void . liftIO . async $ do
+        now <- liftIO $ round <$> getPOSIXTime
+        handle config (now-1) now
 
   where
-    handle before now = do
+    handle c@(TimeCacheConfig url pool) before now = do
         async $ do
             entries <- runDb pool $ select $ from $ \t -> do
                 where_ (t ^. TimeEntryTimestamp <=. val now)
                 where_ (t ^. TimeEntryTimestamp >=. val before)
                 return t
 
-            mapM_ process entries
+            mapM_ (process url pool) entries
 
         threadDelay $ 1*10^6
-        round <$> getPOSIXTime >>= handle now
+        round <$> getPOSIXTime >>= handle c now
 
-    process (entityVal -> TimeEntry _ value time) =
-        awhenM (readMVar mhook) $
-            \(Webhook url) -> do
-                send url value
-                runDb pool $ delete $ from $ \t ->
-                    where_ (t ^. TimeEntryTimestamp ==. val time)
-
-startWorker mhook pool = async $ worker pool mhook
+    process url pool (entityVal -> TimeEntry _ value time) = do
+        send url value
+        runDb pool $ delete $ from $ \t ->
+            where_ (t ^. TimeEntryTimestamp ==. val time)

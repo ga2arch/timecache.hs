@@ -4,18 +4,17 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache.Utils
-    ( insertEntry
-    , evictOldEntries
-    , loadHook
+    ( evictOldEntries
     , runDb
     , send
-    , awhenM
     ) where
 
 import           Cache.TimeCache.Types
 import           Control.Concurrent.MVar
+import qualified Control.Exception            as E
 import           Control.Monad
 import           Control.Monad.Logger
+import           Control.Monad.Reader
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
 import qualified Data.HashMap.Strict          as H
@@ -26,37 +25,23 @@ import           Database.Esqueleto
 import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
-import qualified Control.Exception as E
-
--- | Chainable anaphoric whenM.
-awhenM :: Monad m => m (Maybe a) -> (a -> m ()) -> m ()
-awhenM test action =
-    test >>= \case
-        Just x  -> action x
-        Nothing -> return ()
-
-insertEntry mh (TimeEntry key value time) = modifyMVar_ mh $ \h -> do
-    let bucket = H.lookupDefault [] time h
-    return $ H.insert time (value:bucket) h
 
 runDb pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-evictOldEntries mhook pool = do
-    entries <- runDb pool $ select $ from return
-    mapM_ f entries
+evictOldEntries :: TimeCache ()
+evictOldEntries = do
+    TimeCacheConfig url pool <- ask
+
+    entries <- liftIO $ runDb pool $ select $ from return
+    liftIO $ mapM_ (f url pool) entries
   where
-    f (entityVal -> entry@(TimeEntry key value time)) = do
-        now <- round <$> getPOSIXTime
+    f url pool (entityVal -> entry@(TimeEntry key value time)) = do
+        now <- round <$>  getPOSIXTime
 
-        when (time <= now) $
-            awhenM (readMVar mhook) $
-                \(Webhook url) -> do
-                    send url value
-                    runDb pool $ delete $ from $ \t ->
-                        where_ (t ^. TimeEntryTimestamp ==. val time)
-
-loadHook mhook pool =
-    swapMVar mhook $ Just $ Webhook "http://104.197.125.254:8000/expiration"
+        when (time <= now) $ do
+            send url value
+            runDb pool $ delete $ from $ \t ->
+                    where_ (t ^. TimeEntryTimestamp ==. val time)
 
 send url value = do
     manager <- newManager defaultManagerSettings
