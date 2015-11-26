@@ -18,14 +18,15 @@ import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
 import           System.Posix.Unistd
+import System.Clock
 
 worker :: Pool SqlBackend -> MVar (Maybe Webhook) -> IO ()
 worker pool mhook = do
-    since <- round <$> getPOSIXTime
-    handle since (since-1) since
+    now <- round <$> getPOSIXTime
+    handle (now-1) now
 
   where
-    handle since before now = do
+    handle before now = do
         async $ do
             entries <- runDb pool $ select $ from $ \t -> do
                 where_ (t ^. TimeEntryTimestamp <=. val now)
@@ -34,12 +35,8 @@ worker pool mhook = do
 
             mapM_ process entries
 
-        usleep $ 1 * 10^6
-        if (now - since > 60)
-            then do
-                since <- round <$> getPOSIXTime
-                handle since (since-1) since
-            else handle since now (now + 1)
+        threadDelay $ 1*10^6
+        round <$> getPOSIXTime >>= handle now
 
     process (entityVal -> TimeEntry _ value time) =
         awhenM (readMVar mhook) $
