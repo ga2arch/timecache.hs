@@ -18,8 +18,8 @@ import           Database.Persist.Sqlite      (createSqlitePool)
 
 main :: IO ()
 main = do
-    pool  <- liftIO $ runNoLoggingT $ createSqlitePool "timecache.sql" 5
-    liftIO $ runDb pool $ runMigration migrateTables
+    pool  <- runNoLoggingT $ createSqlitePool "timecache.sql" 5
+    runDb pool $ runMigration migrateTables
 
     let config = TimeCacheConfig "http://104.197.125.254:8000/expiration" pool
     runTimeCache config
