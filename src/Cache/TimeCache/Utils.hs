@@ -56,7 +56,7 @@ evictOldEntries mhook pool = do
                         where_ (t ^. TimeEntryTimestamp ==. val time)
 
 loadHook mhook pool =
-    swapMVar mhook $ Just "http://104.197.125.254:8000/expiration"
+    swapMVar mhook $ Just $ Webhook "http://104.197.125.254:8000/expiration"
 
 send url value = do
     manager <- newManager defaultManagerSettings
