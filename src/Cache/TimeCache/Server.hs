@@ -4,7 +4,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache.Server
-    ( httpServer
+    ( runHttpServer
     ) where
 
 import           Cache.TimeCache.Model
@@ -12,64 +12,63 @@ import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Control.Concurrent
 import           Control.Concurrent.Async
-import           Control.Concurrent.MVar
 import           Control.Monad
 import           Control.Monad.IO.Class       (liftIO)
 import           Control.Monad.Logger
 import           Control.Monad.Reader
+import           Control.Monad.State
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
 import           Data.Maybe                   (listToMaybe)
+import           Data.String.Conversions
+import           Data.Text                    (Text, pack)
 import           Data.Time.Clock.POSIX
-import           Database.Esqueleto
+import           Database.Esqueleto           hiding (get)
 import           Network.HTTP.Types.Status
-import qualified Web.Scotty                   as SC
+import           Web.Scotty.Internal.Types
+import qualified Web.Scotty.Trans             as SCT
 
-httpServer pool port = SC.scotty port $ do
-    SC.post "/insert" $ do
-        entry@(TimeEntry key value time) <- SC.jsonData :: SC.ActionM TimeEntry
-        liftIO $
-            runQuery pool $ do
-                e <- getEntry key
-                case e of
-                    Just _ -> do
-                        liftIO $ putStrLn $ "Updating:  " ++ show key
-                        updateEntry entry
+type TServer = ScottyT Text TimeCache
+type TAction = ActionT Text TimeCache
 
-                    Nothing -> do
-                        liftIO $ putStrLn $ "Inserting:  " ++ show entry
-                        insertEntry entry
-        SC.status status200
+instance ScottyError Text where
+    stringError = cs
+    showError   = cs
 
-    SC.delete "/delete/:key" $ do
-        key <- SC.param "key"
-        liftIO $ do
-            putStrLn $ "Deleting: " ++ show key
-            runQuery pool $ deleteEntry key
-        SC.status status200
+server :: TServer ()
+server = do
+    SCT.post "/insert" $ do
+        entry@(TimeEntry key value time) <- SCT.jsonData-- :: SCT.ActionM TimeEntry
+        runQuery $ do
+            e <- getEntry key
+            case e of
+                Just _ -> do
+                    liftIO $ putStrLn $ "Updating:  " ++ show key
+                    updateEntry entry
 
-    SC.get "/entries/:key" $ do
-        key <- SC.param "key"
-        query <- liftIO $ runQuery pool $ getEntry key
+                Nothing -> do
+                    liftIO $ putStrLn $ "Inserting:  " ++ show entry
+                    insertEntry entry
+        SCT.status status200
+
+    SCT.delete "/delete/:key" $ do
+        key <- SCT.param "key"
+        liftIO $ putStrLn $ "Deleting: " ++ show key
+        runQuery $ deleteEntry key
+        SCT.status status200
+
+    SCT.get "/entries/:key" $ do
+        key <- SCT.param "key"
+        query <- runQuery $ getEntry key
         case query of
-            Just (entityVal -> entry) -> SC.json entry
-            Nothing                   -> SC.status status404
-
+            Just (entityVal -> entry) -> SCT.json entry
+            Nothing                   -> SCT.status status404
   where
-    runQuery pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
-    insertEntry entry = void $ insert entry
+    runQuery = lift . runDb
 
-    updateEntry (TimeEntry key value time) =
-        update $ \t -> do
-            set t [TimeEntryValue     =. val value,
-                   TimeEntryTimestamp =. val time]
-            where_ (t ^. TimeEntryKey ==. val key)
-
-    deleteEntry key =
-        delete $ from $ \t ->
-            where_ (t ^. TimeEntryKey ==. val key)
-
-    getEntry key = fmap listToMaybe $
-        select $ from $ \c -> do
-            where_ (c ^. TimeEntryKey ==. val key)
-            return c
+runHttpServer :: TimeCache ()
+runHttpServer = do
+    port   <- getPort
+    config <- ask
+    state  <- get
+    SCT.scottyT port (runT config state) server

@@ -13,7 +13,6 @@ import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.Monad
 import           Control.Monad.Reader
-import           Control.Monad.Reader
 import           Control.Monad.State
 import           Data.Pool                (Pool)
 import           Data.Text                (Text, unpack)
@@ -43,8 +42,5 @@ worker = do
         nnow <- liftIO $ do
             threadDelay $ 1*10^6
             round <$> getPOSIXTime
-            
-        handle now nnow
 
-    runT config state f =
-        evalStateT (runReaderT (unT f) config) state
+        handle now nnow

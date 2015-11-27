@@ -1,7 +1,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE TypeFamilies               #-}
-module Cache.TimeCache.Types where
+module Cache.TimeCache.Types
+    ( TimeCacheConfig(..)
+    , TimeCacheState(..)
+    , TimeCache(..)
+
+    , runT
+    , getPool
+    , getHook
+    , getPort
+    )where
 
 import           Cache.TimeCache.Model
 import           Control.Monad.Base
@@ -35,8 +44,14 @@ instance MonadBaseControl IO TimeCache where
     liftBaseWith f = T (liftBaseWith (\run -> f (run . unT)))
     restoreM = T . restoreM
 
+runT :: TimeCacheConfig -> TimeCacheState -> TimeCache a -> IO a
+runT config state f = evalStateT (runReaderT (unT f) config) state
+
 getPool :: TimeCache (Pool SqlBackend)
 getPool = gets pool
 
 getHook :: TimeCache Text
 getHook = asks hook
+
+getPort :: TimeCache Int
+getPort = asks port

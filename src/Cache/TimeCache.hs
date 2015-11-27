@@ -12,6 +12,7 @@ import           Cache.TimeCache.Server
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Cache.TimeCache.Worker
+import           Control.Concurrent.Async
 import           Control.Monad                (when)
 import           Control.Monad.Logger         (runNoLoggingT)
 import           Control.Monad.Reader         (runReaderT)
@@ -36,7 +37,6 @@ runTimeCache config@(TimeCacheConfig db port hook) = do
     pool  <- runNoLoggingT $ createSqlitePool db 5
     runResourceT $ runNoLoggingT $ runSqlPool (runMigration migrateTables) pool
 
-    evalStateT (runReaderT (unT f) config) (TimeCacheState pool)
-    httpServer pool port
-  where
-   f = evictOldEntries >> worker
+    let state = TimeCacheState pool
+    async $ runT config state $ evictOldEntries >> worker
+    runT config state runHttpServer
