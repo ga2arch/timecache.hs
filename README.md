@@ -4,16 +4,31 @@
 
 Simple cache where each element that expire gets sent to a webhook.
 
-## Insert element 
+## TODO
+Args
 
-Make a post request to ```http://localhost:8080/``` with json document of form:
+## Insert element
+
+Make a POST request to ```http://localhost:8080/insert``` with json document of form:
 
 ```json
 {
-  "value":     "data"
+  "key":       "test"
+, "value":     "data"
 , "timestamp": 1448198760
 }
 ```
 
-When 1448198760 is >= now, "data" is sent back to the url passed in the setWebhook
+When 1448198760 is >= now, "data" is sent to the webhook.
 
+
+## Update element
+When an insertion is performed, if the key is already in the db it gets updated
+
+## Delete element
+
+Make a DELETE request to ```http://localhost:8080/delete/<key>```
+
+## Get element
+
+Make a GET request to ```http://localhost:8080/entries/<key>```
