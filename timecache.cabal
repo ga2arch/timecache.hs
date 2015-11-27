@@ -38,6 +38,6 @@ executable timecache
                        transformers, unordered-containers, time, hashable,
                        async, persistent, persistent-sqlite, scotty,
                        persistent-template, esqueleto, text, monad-logger,
-                       mtl, resourcet, resource-pool, Spock, aeson, http-types,
+                       mtl, resourcet, resource-pool, aeson, http-types,
                        http-client, string-conversions, unix, clock,
                        exceptions
