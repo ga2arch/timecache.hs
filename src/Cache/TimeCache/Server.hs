@@ -14,18 +14,22 @@ import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.Monad
-import           Control.Monad.IO.Class    (liftIO)
-import           Data.Maybe                (listToMaybe)
+import           Control.Monad.IO.Class       (liftIO)
+import           Control.Monad.Logger
+import           Control.Monad.Reader
+import           Control.Monad.Trans
+import           Control.Monad.Trans.Resource
+import           Data.Maybe                   (listToMaybe)
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
 import           Network.HTTP.Types.Status
-import qualified Web.Scotty                as SC
+import qualified Web.Scotty                   as SC
 
 httpServer pool port = SC.scotty port $ do
     SC.post "/insert" $ do
         entry@(TimeEntry key value time) <- SC.jsonData :: SC.ActionM TimeEntry
-        liftIO $ do
-            runDb pool $ do
+        liftIO $
+            runQuery pool $ do
                 e <- getEntry key
                 case e of
                     Just _ -> do
@@ -41,17 +45,18 @@ httpServer pool port = SC.scotty port $ do
         key <- SC.param "key"
         liftIO $ do
             putStrLn $ "Deleting: " ++ show key
-            runDb pool $ deleteEntry key
+            runQuery pool $ deleteEntry key
         SC.status status200
 
     SC.get "/entries/:key" $ do
         key <- SC.param "key"
-        query <- liftIO $ runDb pool $ getEntry key
+        query <- liftIO $ runQuery pool $ getEntry key
         case query of
             Just (entityVal -> entry) -> SC.json entry
             Nothing                   -> SC.status status404
 
   where
+    runQuery pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
     insertEntry entry = void $ insert entry
 
     updateEntry (TimeEntry key value time) =

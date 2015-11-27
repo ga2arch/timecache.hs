@@ -40,4 +40,5 @@ executable timecache
                        persistent-template, esqueleto, text, monad-logger,
                        mtl, resourcet, resource-pool, aeson, http-types,
                        http-client, string-conversions, unix, clock,
-                       exceptions, optparse-applicative
+                       exceptions, optparse-applicative, monad-control,
+                       transformers-base

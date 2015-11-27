@@ -9,7 +9,6 @@ module Cache.TimeCache.Utils
 
 import           Cache.TimeCache.Model
 import           Cache.TimeCache.Types
-import           Control.Concurrent.MVar
 import qualified Control.Exception            as E
 import           Control.Monad
 import           Control.Monad.Logger
@@ -17,41 +16,44 @@ import           Control.Monad.Reader
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
 import           Data.Either
-import qualified Data.HashMap.Strict          as H
 import           Data.Pool
 import           Data.String.Conversions
 import           Data.Text                    (Text, unpack)
-import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
 import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
 
-runDb pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
+runDb :: SqlPersistT (NoLoggingT (ResourceT TimeCache)) a -> TimeCache a
+runDb f = do
+    pool <- getPool
+    runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-post :: Text -> Text -> IO (Either HttpException Bool)
-post url value = do
-    manager <- newManager defaultManagerSettings
-    initialRequest <- parseUrl $ unpack url
+post :: Text -> TimeCache (Either HttpException Bool)
+post value = do
+    hook <- getHook
+
+    manager <- liftIO $ newManager defaultManagerSettings
+    initialRequest <- parseUrl $ unpack hook
 
     let request = initialRequest {
         method = "POST"
     ,   requestBody = RequestBodyLBS $ cs value
     }
 
-    response <- E.try $ httpLbs request manager
+    response <- liftIO $ E.try $ httpLbs request manager
     case response of
-        Right _ -> return $ Right True
+        Right _                    -> return $ Right True
         Left (ex :: HttpException) -> return $ Left ex
 
-evict :: Text -> Pool SqlBackend -> TimeEntry -> IO ()
-evict hook pool (TimeEntry key value _) = do
-    putStr $ "Evicting: " ++ (unpack value) ++ " ... "
+evict :: TimeEntry -> TimeCache ()
+evict (TimeEntry key value _) = do
+    liftIO $ putStr $ "Evicting: " ++ (unpack value) ++ " ... "
 
-    resp <- post hook value
+    resp <- post value
     if (isRight resp)
         then do
-            runDb pool $ delete $ from $ \t ->
-                    where_ (t ^. TimeEntryKey ==. val key)
-            putStrLn " OK."
-        else putStrLn " Fail."
+            runDb $ delete $ from $ \t ->
+                        where_ (t ^. TimeEntryKey ==. val key)
+            liftIO $ putStrLn " OK."
+        else liftIO $ putStrLn " Fail."

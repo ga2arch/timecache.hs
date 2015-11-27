@@ -13,31 +13,38 @@ import           Control.Concurrent.Async
 import           Control.Concurrent.MVar
 import           Control.Monad
 import           Control.Monad.Reader
+import           Control.Monad.Reader
+import           Control.Monad.State
 import           Data.Pool                (Pool)
 import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
-import           Database.Esqueleto
+import           Database.Esqueleto       hiding (get)
 import           System.Clock
 import           System.Posix.Unistd
 
 worker :: TimeCache ()
 worker = do
-    pool <- getPool
-    hook <- getHook
-
-    void . liftIO . async $ do
-        now <- liftIO $ round <$> getPOSIXTime
-        handle hook pool (now-1) now
+    now <- liftIO $ round <$> getPOSIXTime
+    handle (now-1) now
 
   where
-    handle hook pool before now = do
-        async $ do
-            entries <- runDb pool $ select $ from $ \t -> do
+    handle before now = do
+        config <- ask
+        state  <- get
+
+        liftIO . async . runT config state $ do
+            entries <- runDb $ select $ from $ \t -> do
                 where_ (t ^. TimeEntryTimestamp <=. val now)
                 where_ (t ^. TimeEntryTimestamp >=. val before)
                 return t
 
-            mapM_ (evict hook pool . entityVal) entries
+            mapM_ (evict . entityVal) entries
 
-        threadDelay $ 1*10^6
-        round <$> getPOSIXTime >>= handle hook pool now
+        nnow <- liftIO $ do
+            threadDelay $ 1*10^6
+            round <$> getPOSIXTime
+            
+        handle now nnow
+
+    runT config state f =
+        evalStateT (runReaderT (unT f) config) state

@@ -12,36 +12,31 @@ import           Cache.TimeCache.Server
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Cache.TimeCache.Worker
-import           Control.Concurrent
-import           Control.Monad
-import           Control.Monad.Logger
-import           Control.Monad.Reader
-import           Control.Monad.State
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Resource
-import qualified Data.HashMap.Strict          as H
-import           Data.Time.Clock.POSIX
+import           Control.Monad                (when)
+import           Control.Monad.Logger         (runNoLoggingT)
+import           Control.Monad.Reader         (runReaderT)
+import           Control.Monad.State          (evalStateT)
+import           Control.Monad.Trans          (liftIO)
+import           Control.Monad.Trans.Resource (runResourceT)
+import           Data.Time.Clock.POSIX        (getPOSIXTime)
 import           Database.Esqueleto
 import           Database.Persist.Sqlite      (createSqlitePool)
 
 evictOldEntries :: TimeCache ()
 evictOldEntries = do
-    pool <- getPool
-    hook <- getHook
-
-    entries <- liftIO $ runDb pool $ select $ from return
-    liftIO $ mapM_ (f hook pool) entries
+    entries <- runDb $ select $ from return
+    mapM_ f entries
   where
-    f hook pool (entityVal -> entry@(TimeEntry key value time)) = do
-        now <- round <$> getPOSIXTime
-        when (time <= now) $ evict hook pool entry
+    f (entityVal -> entry@(TimeEntry key value time)) = do
+        now <- liftIO $ round <$> getPOSIXTime
+        when (time <= now) $ evict entry
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config@(TimeCacheConfig db port hook) = do
-    pool  <- liftIO $ runNoLoggingT $ createSqlitePool db 5
-    liftIO $ runDb pool $ runMigration migrateTables
+    pool  <- runNoLoggingT $ createSqlitePool db 5
+    runResourceT $ runNoLoggingT $ runSqlPool (runMigration migrateTables) pool
 
     evalStateT (runReaderT (unT f) config) (TimeCacheState pool)
-    liftIO $ httpServer pool port
+    httpServer pool port
   where
    f = evictOldEntries >> worker
