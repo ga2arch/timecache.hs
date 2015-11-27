@@ -2,13 +2,32 @@
 module Main where
 
 import           Cache.TimeCache
-import           Data.Text          (pack)
+import           Data.Text           (pack)
+import           Options.Applicative
 import           System.Environment
 
-main :: IO ()
-main = do
-    host <- getEnv "ACM"
-    let hook = pack $ "http://"++host++":8000/expiration"
-    let config = TimeCacheConfig "timecache.sql" 8080 hook
+config = TimeCacheConfig
+    <$> (fmap pack $ strOption
+        (  long "db"
+        <> metavar "NAME"
+        <> value "timecache.sql"
+        <> help "The name of the db file"))
 
-    runTimeCache config
+    <*> option auto
+        (  long "port"
+        <> metavar "PORT"
+        <> value 8080
+        <> help "The port to listen on")
+
+    <*> (fmap pack $ strOption
+        (  long "hook"
+        <> metavar "URL"
+        <> help "The url of the hook"))
+
+main :: IO ()
+main = execParser opts >>= runTimeCache
+  where
+    opts = info (helper <*> config)
+        ( fullDesc
+        <> progDesc "Run the cache"
+        <> header "timecache - simple cache with expiring events" )
