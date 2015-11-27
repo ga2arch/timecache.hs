@@ -4,10 +4,6 @@
 
 Simple cache where each element that expire gets sent to a webhook.
 
-## setWebhook
-
-Make a post request to ```http://localhost:8080/setWebhook?hook=<url>```
-
 ## Insert element 
 
 Make a post request to ```http://localhost:8080/``` with json document of form:
