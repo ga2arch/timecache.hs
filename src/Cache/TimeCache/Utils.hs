@@ -53,5 +53,5 @@ evict hook pool (TimeEntry key value _) = do
         then do
             runDb pool $ delete $ from $ \t ->
                     where_ (t ^. TimeEntryKey ==. val key)
-            putStrLn " OK"
-        else putStrLn " OK"
+            putStrLn " OK."
+        else putStrLn " Fail."
