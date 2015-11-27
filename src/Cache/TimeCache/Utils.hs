@@ -2,13 +2,12 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache.Utils
-    ( evictOldEntries
-    , runDb
-    , send
+    ( runDb
+    , evict
     ) where
 
+import           Cache.TimeCache.Model
 import           Cache.TimeCache.Types
 import           Control.Concurrent.MVar
 import qualified Control.Exception            as E
@@ -17,7 +16,9 @@ import           Control.Monad.Logger
 import           Control.Monad.Reader
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
+import           Data.Either
 import qualified Data.HashMap.Strict          as H
+import           Data.Pool
 import           Data.String.Conversions
 import           Data.Text                    (Text, unpack)
 import           Data.Time.Clock.POSIX
@@ -28,22 +29,8 @@ import           Network.HTTP.Types.Status
 
 runDb pool f = runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-evictOldEntries :: TimeCache ()
-evictOldEntries = do
-    TimeCacheConfig url pool <- ask
-
-    entries <- liftIO $ runDb pool $ select $ from return
-    liftIO $ mapM_ (f url pool) entries
-  where
-    f url pool (entityVal -> entry@(TimeEntry key value time)) = do
-        now <- round <$>  getPOSIXTime
-
-        when (time <= now) $ do
-            send url value
-            runDb pool $ delete $ from $ \t ->
-                    where_ (t ^. TimeEntryTimestamp ==. val time)
-
-send url value = do
+post :: Text -> Text -> IO (Either HttpException Bool)
+post url value = do
     manager <- newManager defaultManagerSettings
     initialRequest <- parseUrl $ unpack url
 
@@ -52,9 +39,19 @@ send url value = do
     ,   requestBody = RequestBodyLBS $ cs value
     }
 
-    putStr $ "Evicting: " ++ (cs value) ++ " ... "
     response <- E.try $ httpLbs request manager
-
     case response of
-        Right _ -> putStrLn " Ok."
-        Left (ex :: HttpException) -> putStrLn " Fail."
+        Right _ -> return $ Right True
+        Left (ex :: HttpException) -> return $ Left ex
+
+evict :: Text -> Pool SqlBackend -> TimeEntry -> IO ()
+evict hook pool (TimeEntry key value _) = do
+    putStr $ "Evicting: " ++ (unpack value) ++ " ... "
+
+    resp <- post hook value
+    if (isRight resp)
+        then do
+            runDb pool $ delete $ from $ \t ->
+                    where_ (t ^. TimeEntryKey ==. val key)
+            putStrLn " OK"
+        else putStrLn " OK"

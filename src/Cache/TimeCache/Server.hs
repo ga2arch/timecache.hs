@@ -6,6 +6,7 @@ module Cache.TimeCache.Server
     ( httpServer
     ) where
 
+import           Cache.TimeCache.Model
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Control.Concurrent
@@ -16,10 +17,9 @@ import           Control.Monad.IO.Class    (liftIO)
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto
 import           Network.HTTP.Types.Status (status200)
-
 import qualified Web.Scotty                as SC
 
-httpServer pool = SC.scotty 8080 $ do
+httpServer pool port = SC.scotty port $ do
     SC.post "/insert" $ do
         entry <- SC.jsonData :: SC.ActionM TimeEntry
         liftIO $ do
