@@ -7,11 +7,11 @@ import           Options.Applicative
 import           System.Environment
 
 config = TimeCacheConfig
-    <$> (fmap pack $ strOption
+    <$> txtOption
         (  long "db"
         <> metavar "NAME"
         <> value "timecache.sql"
-        <> help "The name of the db file"))
+        <> help "The name of the db file")
 
     <*> option auto
         (  long "port"
@@ -19,10 +19,12 @@ config = TimeCacheConfig
         <> value 8080
         <> help "The port to listen on")
 
-    <*> (fmap pack $ strOption
+    <*> txtOption
         (  long "hook"
         <> metavar "URL"
-        <> help "The url of the hook"))
+        <> help "The url of the hook")
+  where
+    txtOption = fmap pack . strOption
 
 main :: IO ()
 main = execParser opts >>= runTimeCache
