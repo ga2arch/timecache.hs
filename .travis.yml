@@ -38,7 +38,7 @@ cache:
 before_deploy:
 - upx ~/.local/bin/timecache
 - docker login -e="$DOCKER_EMAIL" -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-- docker pull fpco/haskell-scratch:integer-gmp
+- docker pull fpco/ubuntu-with-libgmp:14.04
 - stack image container
 - docker tag -f ga2arch/timecache ga2arch/timecache:$TRAVIS_TAG
 - docker tag -f ga2arch/timecache ga2arch/timecache:latest

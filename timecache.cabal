@@ -13,19 +13,10 @@ build-type:          Simple
 cabal-version:       >=1.10
 
 executable timecache
-  if os(linux)
-    ghc-options:
-        -O2
-        -threaded
-        -rtsopts
-        "-with-rtsopts=-N4 -s"
-        -static -optl-static
-  else
-    ghc-options:
+  ghc-options:
       -O2
       -threaded
       -rtsopts
-      --enable-executable-profiling
       "-with-rtsopts=-N4 -s"
   hs-source-dirs:      src
   main-is:             Main.hs
