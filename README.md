@@ -4,7 +4,7 @@
 
 Simple cache where each element that expire gets sent to a webhook.
 
-## Args
+## Usage
 ```
 timecache - simple cache with expiring events
 
