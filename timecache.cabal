@@ -1,35 +1,51 @@
-name:                timecache
-version:             0.1.0.0
-synopsis:            Simple project template from stack
-description:         Please see README.md
-homepage:            http://github.com/ga2arch/timecache#readme
-license:             BSD3
-license-file:        LICENSE
-author:              Gabriele Carrettoni
-maintainer:          gabriele.carrettoni@gmail.com
-copyright:           2010 Author Here
-category:            Web
-build-type:          Simple
-cabal-version:       >=1.10
+name: timecache
+version: 0.1.0.0
+cabal-version: >=1.10
+build-type: Simple
+license: BSD3
+license-file: LICENSE
+copyright: 2010 Author Here
+maintainer: gabriele.carrettoni@gmail.com
+homepage: http://github.com/ga2arch/timecache#readme
+synopsis: Simple project template from stack
+description:
+    Please see README.md
+category: Web
+author: Gabriele Carrettoni
 
 executable timecache
-  ghc-options:
-      -O2
-      -threaded
-      -rtsopts
-      "-with-rtsopts=-N4 -s"
-  hs-source-dirs:      src
-  main-is:             Main.hs
-  default-language:    Haskell2010
-
-  other-modules:       Cache.TimeCache, Cache.TimeCache.Types,
-                       Cache.TimeCache.Utils, Cache.TimeCache.Worker,
-                       Cache.TimeCache.Server
-
-  build-depends:       base >= 4.7 && < 5, streaming-commons, bytestring,
-                       transformers, unordered-containers, time, hashable,
-                       async, scotty, text, monad-logger,
-                       mtl, aeson, http-types, void,
-                       http-client, string-conversions, unix, stm,
-                       exceptions, optparse-applicative, monad-control,
-                       transformers-base, directory, hashtables
+    main-is: Main.hs
+    build-depends:
+        base >=4.7 && <5,
+        streaming-commons -any,
+        bytestring -any,
+        transformers -any,
+        unordered-containers -any,
+        time -any,
+        hashable -any,
+        async -any,
+        scotty -any,
+        text -any,
+        monad-logger -any,
+        mtl -any,
+        aeson -any,
+        http-types -any,
+        http-client -any,
+        string-conversions -any,
+        unix -any,
+        stm -any,
+        exceptions -any,
+        optparse-applicative -any,
+        monad-control -any,
+        transformers-base -any,
+        directory -any,
+        hashtables -any
+    default-language: Haskell2010
+    hs-source-dirs: src
+    other-modules:
+        Cache.TimeCache
+        Cache.TimeCache.Types
+        Cache.TimeCache.Utils
+        Cache.TimeCache.Worker
+        Cache.TimeCache.Server
+    ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N4 -s
