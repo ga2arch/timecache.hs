@@ -4,8 +4,20 @@
 
 Simple cache where each element that expire gets sent to a webhook.
 
-## TODO
-Args
+## Usage
+```
+timecache - simple cache with expiring events
+
+Usage: timecache [--db NAME] [--port PORT] --hook URL [--interval TIME]
+  Run the cache
+
+Available options:
+  -h,--help                Show this help text
+  --db NAME                The name of the db file
+  --port PORT              The port to listen on
+  --hook URL               The url of the hook
+  --interval TIME          The interval between two checks
+```
 
 ## Insert element
 
