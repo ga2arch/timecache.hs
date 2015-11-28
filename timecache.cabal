@@ -48,4 +48,4 @@ executable timecache
         Cache.TimeCache.Utils
         Cache.TimeCache.Worker
         Cache.TimeCache.Server
-    ghc-options: -O2 -threaded -rtsopts -with-rtsopts=-N4 -s
+    ghc-options: -O2 -threaded -rtsopts "-with-rtsopts=-N4 -s"
