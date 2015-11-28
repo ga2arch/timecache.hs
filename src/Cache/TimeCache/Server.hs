@@ -48,13 +48,7 @@ server = do
 
     SCT.get "/entries/:key" $ do
         key <- SCT.param "key"
-        mkvStore <- lift getKVStore
-        entry <- liftIO . atomically $ do
-            res <- unsafeIOToSTM $ H.lookup mkvStore key
-            case res of
-                Just me -> readTVar me >>= return . Just
-                Nothing -> return Nothing
-
+        entry <- lift $ getEntry key
         case entry of
             Just e  -> SCT.json e
             Nothing -> SCT.status status404

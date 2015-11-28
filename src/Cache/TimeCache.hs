@@ -36,10 +36,7 @@ restoreEntries = do
         now <- liftIO $ round <$> getPOSIXTime
         when (time >= now) $ cacheEntry entry
 
-    f (Delete key) = do
-        mkvStore <- getKVStore
-        liftIO . atomically $ do
-            unsafeIOToSTM $ H.delete mkvStore key
+    f (Delete key) = deleteKeyFromStore key
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config@(TimeCacheConfig port hook interval) = do

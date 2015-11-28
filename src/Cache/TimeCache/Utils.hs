@@ -83,7 +83,7 @@ cacheEntry entry@(TimeEntry key value time) = do
 
     return ()
   where
-    --moveBucket :: Buckets -> Text -> Timestamp -> Timestamp -> STM ()
+    moveBucket :: Buckets -> Text -> Timestamp -> Timestamp -> STM ()
     moveBucket mbuckets key oldTime newTime = do
         res <- unsafeIOToSTM $ H.lookup mbuckets oldTime
         case res of
@@ -94,6 +94,7 @@ cacheEntry entry@(TimeEntry key value time) = do
 
         insertIntoBucket mbuckets key newTime
 
+    insertIntoBucket :: Buckets -> Text -> Timestamp -> STM ()
     insertIntoBucket mbuckets key time = do
         res <- unsafeIOToSTM $ H.lookup mbuckets time
         case res of
@@ -116,7 +117,22 @@ insertEntry entry = do
 deleteEntry :: Text -> TimeCache ()
 deleteEntry key = do
     mkvStore <- getKVStore
-    liftIO . atomically $ do
+    liftIO . atomically $
         unsafeIOToSTM $ H.delete mkvStore key
 
     appendLog $ Delete key
+
+getEntry :: Text -> TimeCache (Maybe TimeEntry)
+getEntry key = do
+    mkvStore <- getKVStore
+    liftIO . atomically $ do
+        res <- unsafeIOToSTM $ H.lookup mkvStore key
+        case res of
+            Just me -> readTVar me >>= return . Just
+            Nothing -> return Nothing
+
+deleteKeyFromStore :: Text -> TimeCache ()
+deleteKeyFromStore key = do
+    mkvStore <- getKVStore
+    liftIO . atomically $
+        unsafeIOToSTM $ H.delete mkvStore key
