@@ -45,13 +45,18 @@ server = do
         lift $ deleteEntry key
         SCT.status status200
 
-    -- SCT.get "/entries/:key" $ do
-    --     key <- SCT.param "key"
-    --
-    --     entry <- liftIO . atomically $
-    --     case query of
-    --         Just (entityVal -> entry) -> SCT.json entry
-    --         Nothing                   -> SCT.status status404
+    SCT.get "/entries/:key" $ do
+        key <- SCT.param "key"
+        mkvStore <- lift getKVStore
+        entry <- liftIO . atomically $ do
+            kvStore <- readTVar mkvStore
+            case H.lookup key kvStore of
+                Just me -> readTVar me >>= return . Just
+                Nothing -> return Nothing
+
+        case entry of
+            Just e  -> SCT.json e
+            Nothing -> SCT.status status404
 
 runHttpServer :: TimeCache ()
 runHttpServer = do
