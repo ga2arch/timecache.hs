@@ -25,6 +25,7 @@ executable timecache
       -O2
       -threaded
       -rtsopts
+      -prof
       "-with-rtsopts=-N4 -s"
   hs-source-dirs:      src
   main-is:             Main.hs

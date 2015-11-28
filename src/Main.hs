@@ -23,6 +23,12 @@ config = TimeCacheConfig
         (  long "hook"
         <> metavar "URL"
         <> help "The url of the hook")
+
+    <*> option auto
+        ( long "interval"
+        <> metavar "TIME"
+        <> value 1
+        <> help "The interval between two checks")
   where
     txtOption = fmap pack . strOption
 

@@ -12,6 +12,7 @@ module Cache.TimeCache.Types
     , getPool
     , getHook
     , getPort
+    , getInterval
     , getBuckets
     , getKVStore
     , getStart
@@ -37,9 +38,10 @@ type KVStore   = H.HashMap Text (TVar TimeEntry)
 type Buckets   = H.HashMap Timestamp (TVar KVStore)
 
 data TimeCacheConfig = TimeCacheConfig {
-    db   :: Text
-,   port :: Int
-,   hook :: Text
+    db       :: Text
+,   port     :: Int
+,   hook     :: Text
+,   interval :: Int
 }
 
 data TimeCacheState = TimeCacheState {
@@ -70,6 +72,9 @@ getHook = asks hook
 
 getPort :: TimeCache Int
 getPort = asks port
+
+getInterval :: TimeCache Int
+getInterval = asks interval
 
 getBuckets :: TimeCache (TVar Buckets)
 getBuckets = gets buckets

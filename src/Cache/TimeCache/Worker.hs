@@ -26,7 +26,7 @@ import           System.Posix.Unistd
 worker :: TimeCache ()
 worker = do
     now <- liftIO $ round <$> getPOSIXTime
-    handle (now-1) now
+    handle now (now+1)
 
   where
     handle :: Timestamp -> Timestamp -> TimeCache ()
@@ -34,26 +34,28 @@ worker = do
         config   <- ask
         state    <- get
         mbuckets <- getBuckets
+        interval <- getInterval
 
-        liftIO . async . runT config state $ do
-            entries <- liftIO . atomically $ do
-                buckets <- readTVar mbuckets
+        entries <- liftIO . atomically $ do
+            buckets <- readTVar mbuckets
 
-                case H.lookup now buckets of
-                    Just mbucket -> do
-                        bucket <- readTVar mbucket
-                        swapTVar mbuckets $ H.delete now buckets
-                        return $ H.toList bucket
+            case H.lookup now buckets of
+                Just mbucket -> do
+                    bucket <- readTVar mbucket
+                    writeTVar mbuckets $ H.delete now buckets
+                    return $ H.toList bucket
 
-                    Nothing -> swapTVar mbuckets buckets >> return []
+                Nothing -> writeTVar mbuckets buckets >> return []
 
-            mapM_  (evict . snd) entries
+        when (not . null $ entries) $
+            void . liftIO . async . runT config state $
+                mapM_  (evict . snd) entries
 
         nnow <- liftIO $ do
-            threadDelay $ 10*10^6
+            threadDelay $ interval*10^6
             round <$> getPOSIXTime
 
-        liftIO $ print $ show nnow
+        --liftIO $ print $ show nnow
         handle now nnow
 
     evict :: TVar TimeEntry -> TimeCache ()

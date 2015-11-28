@@ -21,7 +21,7 @@ import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
 import           Data.Either
 import qualified Data.HashMap.Strict          as H
-import           Data.IORef
+import           Data.Aeson
 import           Data.Pool
 import           Data.String.Conversions
 import           Data.Text                    (Text, unpack)
@@ -29,14 +29,15 @@ import           Database.Esqueleto
 import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
+import GHC.Conc.Sync
 
 runDb :: SqlPersistT (NoLoggingT (ResourceT TimeCache)) a -> TimeCache a
 runDb f = do
     pool <- getPool
     runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-post :: Text -> TimeCache (Either HttpException Bool)
-post value = do
+post :: TimeEntry -> TimeCache (Either HttpException Bool)
+post entry = do
     hook <- getHook
 
     manager <- liftIO $ newManager defaultManagerSettings
@@ -44,7 +45,7 @@ post value = do
 
     let request = initialRequest {
         method = "POST"
-    ,   requestBody = RequestBodyLBS $ cs value
+    ,   requestBody = RequestBodyLBS $ encode entry
     }
 
     response <- liftIO $ E.try $ httpLbs request manager
@@ -53,35 +54,36 @@ post value = do
         Left (ex :: HttpException) -> return $ Left ex
 
 evictEntry :: TimeEntry -> TimeCache ()
-evictEntry (TimeEntry key value _) = do
-    liftIO $ putStr $ "Evicting: " ++ (unpack value) ++ " ... "
+evictEntry e@(TimeEntry key value _) = do
+    --liftIO $ putStr $ "Evicting: " ++ (unpack value) ++ " ... "
     mkv <- getKVStore
 
     liftIO . atomically $
         modifyTVar' mkv $ \kv -> H.delete key kv
 
-    resp <- post value
-    if (isRight resp)
-        then do
-            runDb $ delete $ from $ \t ->
-                where_ (t ^. TimeEntryKey ==. val key)
-            liftIO $ putStrLn " OK."
-        else liftIO $ putStrLn " Fail."
+    void $ post e
+    --if (isRight resp)
+    --    then do
+            --runDb $ delete $ from $ \t ->
+            --    where_ (t ^. TimeEntryKey ==. val key)
+            --liftIO $ putStrLn " OK."
+
+    --    else return ()--liftIO $ putStrLn " Fail."
 
 cacheEntry :: TimeEntry -> TimeCache ()
 cacheEntry entry@(TimeEntry key value time) = do
     start    <- getStart
     mkvStore <- getKVStore
     mbuckets <- getBuckets
+    interval <- getInterval
 
-    let gran   = 10
-        diff   = time - start
-        offset = (ceiling $ (fromIntegral diff) / (fromIntegral gran)) * gran
-        stamp  = start + offset
+    let diff    = time - start
+        offset  = (ceiling $
+            (fromIntegral diff) / (fromIntegral interval)) * interval
+        newTime = start + offset
 
     let correctedEntry = entry {
-        timeEntryValue     = value
-    ,   timeEntryTimestamp = stamp
+        timeEntryTimestamp = newTime
     }
 
     liftIO . atomically $ do
@@ -90,14 +92,15 @@ cacheEntry entry@(TimeEntry key value time) = do
         case H.lookup key kvStore of
             Just me -> do
                 entry <- readTVar me
-                swapTVar me correctedEntry
-                when (timeEntryTimestamp entry /= stamp) $
-                    moveBucket mbuckets me key time stamp
+                writeTVar me correctedEntry
+                let oldTime = timeEntryTimestamp entry
+                when (oldTime /= newTime) $ do
+                    moveBucket mbuckets me key oldTime newTime
 
             Nothing -> do
                 me <- newTVar correctedEntry
-                void . swapTVar mkvStore $ H.insert key me kvStore
-                insertIntoBucket mbuckets me key stamp
+                writeTVar mkvStore $ H.insert key me kvStore
+                insertIntoBucket mbuckets me key newTime
 
     return ()
   where
@@ -107,7 +110,7 @@ cacheEntry entry@(TimeEntry key value time) = do
         case H.lookup oldTime buckets of
             Just mbucket -> do
                 bucket <- readTVar mbucket
-                void $ swapTVar mbucket $ H.delete key bucket
+                writeTVar mbucket $ H.delete key bucket
 
             Nothing -> return ()
 
@@ -119,18 +122,18 @@ cacheEntry entry@(TimeEntry key value time) = do
         case H.lookup time buckets of
             Just mbucket -> do
                 bucket <- readTVar mbucket
-                void $ swapTVar mbucket $ H.insert key me bucket
+                writeTVar mbucket $ H.insert key me bucket
 
             Nothing -> do
                 mbucket <- newTVar $ H.fromList [(key, me)]
-                void $ swapTVar mbuckets $ H.insert time mbucket buckets
+                writeTVar mbuckets $ H.insert time mbucket buckets
 
 storeEntry :: TimeEntry -> TimeCache ()
 storeEntry entry@(TimeEntry key value time) = runDb $ do
     e <- getEntry key
     case e of
         Just _ -> do
-            liftIO $ putStrLn $ "Updating:  " ++ show key
+            liftIO $ putStrLn $ "Updating:  " ++ show entry
             updateEntry entry
 
         Nothing -> do

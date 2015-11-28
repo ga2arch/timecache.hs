@@ -37,7 +37,7 @@ evictOldEntries = do
             else cacheEntry entry
 
 runTimeCache :: TimeCacheConfig -> IO ()
-runTimeCache config@(TimeCacheConfig db port hook) = do
+runTimeCache config@(TimeCacheConfig db port hook interval) = do
     pool  <- runNoLoggingT $ createSqlitePool db 5
     runResourceT $ runNoLoggingT $ runSqlPool (runMigration migrateTables) pool
 

@@ -44,7 +44,7 @@ server = do
 
         lift $ do
             cacheEntry entry
-            storeEntry entry
+            --storeEntry entry
 
         SCT.status status200
 
