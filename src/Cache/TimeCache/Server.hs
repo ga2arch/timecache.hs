@@ -11,6 +11,7 @@ import           Cache.TimeCache.Model
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Control.Concurrent
+import           Control.Concurrent.STM
 import           Control.Concurrent.Async
 import           Control.Monad
 import           Control.Monad.IO.Class       (liftIO)
@@ -19,6 +20,7 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Resource
+import qualified Data.HashMap.Strict          as H
 import           Data.Maybe                   (listToMaybe)
 import           Data.String.Conversions
 import           Data.Text                    (Text, pack)
@@ -39,21 +41,21 @@ server :: TServer ()
 server = do
     SCT.post "/insert" $ do
         entry@(TimeEntry key value time) <- SCT.jsonData-- :: SCT.ActionM TimeEntry
-        runQuery $ do
-            e <- getEntry key
-            case e of
-                Just _ -> do
-                    liftIO $ putStrLn $ "Updating:  " ++ show key
-                    updateEntry entry
 
-                Nothing -> do
-                    liftIO $ putStrLn $ "Inserting:  " ++ show entry
-                    insertEntry entry
+        lift $ do
+            cacheEntry entry
+            storeEntry entry
+
         SCT.status status200
 
     SCT.delete "/delete/:key" $ do
         key <- SCT.param "key"
         liftIO $ putStrLn $ "Deleting: " ++ show key
+
+        mkvStore <- lift getKVStore
+        liftIO $ atomically $ modifyTVar' mkvStore $ \kvStore ->
+            H.delete key kvStore
+
         runQuery $ deleteEntry key
         SCT.status status200
 

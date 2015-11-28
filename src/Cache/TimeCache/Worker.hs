@@ -10,15 +10,17 @@ import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Control.Concurrent
 import           Control.Concurrent.Async
-import           Control.Concurrent.MVar
+import           Control.Concurrent.STM
+import           Control.Concurrent.STM.TVar
 import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.State
+import qualified Data.HashMap.Strict      as H
+import           Data.IORef
 import           Data.Pool                (Pool)
 import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           Database.Esqueleto       hiding (get)
-import           System.Clock
 import           System.Posix.Unistd
 
 worker :: TimeCache ()
@@ -27,20 +29,43 @@ worker = do
     handle (now-1) now
 
   where
+    handle :: Timestamp -> Timestamp -> TimeCache ()
     handle before now = do
-        config <- ask
-        state  <- get
+        config   <- ask
+        state    <- get
+        mbuckets <- getBuckets
 
         liftIO . async . runT config state $ do
-            entries <- runDb $ select $ from $ \t -> do
-                where_ (t ^. TimeEntryTimestamp <=. val now)
-                where_ (t ^. TimeEntryTimestamp >=. val before)
-                return t
+            entries <- liftIO . atomically $ do
+                buckets <- readTVar mbuckets
 
-            mapM_ (evict . entityVal) entries
+                case H.lookup now buckets of
+                    Just mbucket -> do
+                        bucket <- readTVar mbucket
+                        swapTVar mbuckets $ H.delete now buckets
+                        return $ H.toList bucket
+
+                    Nothing -> swapTVar mbuckets buckets >> return []
+
+            mapM_  (evict . snd) entries
 
         nnow <- liftIO $ do
-            threadDelay $ 1*10^6
+            threadDelay $ 10*10^6
             round <$> getPOSIXTime
 
+        liftIO $ print $ show nnow
         handle now nnow
+
+    evict :: TVar TimeEntry -> TimeCache ()
+    evict me = do
+        mkvStore <- getKVStore
+        entry <- liftIO . atomically $ do
+            kvStore <- readTVar mkvStore
+            TimeEntry key _ _ <- readTVar me
+            case H.lookup key kvStore of
+                Just e  -> readTVar e >>= return . Just
+                Nothing -> return Nothing
+
+        case entry of
+            Just e  -> evictEntry e
+            Nothing -> return ()
