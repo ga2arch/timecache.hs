@@ -40,11 +40,11 @@ instance ScottyError Text where
 server :: TServer ()
 server = do
     SCT.post "/insert" $ do
-        entry@(TimeEntry key value time) <- SCT.jsonData-- :: SCT.ActionM TimeEntry
+        entry@(TimeEntry key value time) <- SCT.jsonData
 
         lift $ do
             cacheEntry entry
-            --storeEntry entry
+            storeEntry entry
 
         SCT.status status200
 

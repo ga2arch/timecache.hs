@@ -36,8 +36,8 @@ runDb f = do
     pool <- getPool
     runResourceT $ runNoLoggingT $ runSqlPool f pool
 
-post :: TimeEntry -> TimeCache (Either HttpException Bool)
-post entry = do
+post :: Text -> TimeCache (Either HttpException Bool)
+post value = do
     hook <- getHook
 
     manager <- liftIO $ newManager defaultManagerSettings
@@ -45,7 +45,7 @@ post entry = do
 
     let request = initialRequest {
         method = "POST"
-    ,   requestBody = RequestBodyLBS $ encode entry
+    ,   requestBody = RequestBodyLBS $ cs value
     }
 
     response <- liftIO $ E.try $ httpLbs request manager
@@ -55,20 +55,20 @@ post entry = do
 
 evictEntry :: TimeEntry -> TimeCache ()
 evictEntry e@(TimeEntry key value _) = do
-    --liftIO $ putStr $ "Evicting: " ++ (unpack value) ++ " ... "
+    liftIO $ putStr $ "Evicting: " ++ (unpack value) ++ " ... "
     mkv <- getKVStore
 
     liftIO . atomically $
         modifyTVar' mkv $ \kv -> H.delete key kv
 
-    void $ post e
-    --if (isRight resp)
-    --    then do
-            --runDb $ delete $ from $ \t ->
-            --    where_ (t ^. TimeEntryKey ==. val key)
-            --liftIO $ putStrLn " OK."
+    runDb $ delete $ from $ \t ->
+        where_ (t ^. TimeEntryKey ==. val key)
 
-    --    else return ()--liftIO $ putStrLn " Fail."
+    resp <- post value
+
+    if isRight resp
+        then liftIO $ putStrLn " OK."
+        else liftIO $ putStrLn " Fail."
 
 cacheEntry :: TimeEntry -> TimeCache ()
 cacheEntry entry@(TimeEntry key value time) = do
