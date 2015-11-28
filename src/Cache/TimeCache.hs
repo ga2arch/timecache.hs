@@ -19,9 +19,10 @@ import           Control.Monad.Logger         (runNoLoggingT)
 import           Control.Monad.Reader         (runReaderT)
 import           Control.Monad.State          (evalStateT)
 import           Control.Monad.Trans          (liftIO)
-import qualified Data.HashMap.Strict          as H
+import qualified Data.HashTable.IO as H
 import           Data.Time.Clock.POSIX        (getPOSIXTime)
 import           System.Directory
+import GHC.Conc.Sync
 
 restoreEntries :: TimeCache ()
 restoreEntries = do
@@ -37,12 +38,13 @@ restoreEntries = do
 
     f (Delete key) = do
         mkvStore <- getKVStore
-        liftIO . atomically . modifyTVar' mkvStore $ H.delete key
+        liftIO . atomically $ do
+            unsafeIOToSTM $ H.delete mkvStore key
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config@(TimeCacheConfig port hook interval) = do
-    kvstore <- newTVarIO H.empty
-    buckets <- newTVarIO H.empty
+    kvstore <- H.new
+    buckets <- H.new
     start   <- round <$> getPOSIXTime
 
     let state = TimeCacheState start kvstore buckets

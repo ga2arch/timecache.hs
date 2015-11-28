@@ -17,7 +17,7 @@ import           Control.Monad.IO.Class       (liftIO)
 import           Control.Monad.Logger
 import           Control.Monad.Reader
 import           Control.Monad.State
-import qualified Data.HashMap.Strict          as H
+import qualified Data.HashTable.IO as H
 import           Data.Maybe                   (listToMaybe)
 import           Data.String.Conversions
 import           Data.Text                    (Text, pack)
@@ -25,6 +25,7 @@ import           Data.Time.Clock.POSIX
 import           Network.HTTP.Types.Status
 import           Web.Scotty.Internal.Types
 import qualified Web.Scotty.Trans             as SCT
+import GHC.Conc.Sync
 
 type TServer = ScottyT Text TimeCache
 type TAction = ActionT Text TimeCache
@@ -49,8 +50,8 @@ server = do
         key <- SCT.param "key"
         mkvStore <- lift getKVStore
         entry <- liftIO . atomically $ do
-            kvStore <- readTVar mkvStore
-            case H.lookup key kvStore of
+            res <- unsafeIOToSTM $ H.lookup mkvStore key
+            case res of
                 Just me -> readTVar me >>= return . Just
                 Nothing -> return Nothing
 

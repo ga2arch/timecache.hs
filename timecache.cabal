@@ -29,7 +29,7 @@ executable timecache
   build-depends:       base >= 4.7 && < 5, streaming-commons, bytestring,
                        transformers, unordered-containers, time, hashable,
                        async, scotty, text, monad-logger,
-                       mtl, aeson, http-types,
+                       mtl, aeson, http-types, void,
                        http-client, string-conversions, unix, stm,
                        exceptions, optparse-applicative, monad-control,
-                       transformers-base, directory
+                       transformers-base, directory, hashtables

@@ -10,6 +10,7 @@ module Cache.TimeCache.Types
     , TimeCache(..)
     , Action(..)
     , KVStore
+    , Buckets
     , Timestamp
 
     , runT
@@ -29,13 +30,14 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Control
 import           Data.Aeson
-import qualified Data.HashMap.Strict         as H
+import qualified Data.HashTable.IO as H
 import           Data.Text                   (Text, unpack)
 import           GHC.Generics                (Generic)
 
+type HashTable k v = H.CuckooHashTable k v
 type Timestamp = Int
-type KVStore   = H.HashMap Text (TVar TimeEntry)
-type Buckets   = H.HashMap Timestamp (TVar KVStore)
+type KVStore   = HashTable Text (TVar TimeEntry)
+type Buckets   = HashTable Timestamp (HashTable Text ())
 
 data TimeEntry = TimeEntry {
     timeEntryKey       :: Text
@@ -59,8 +61,8 @@ data TimeCacheConfig = TimeCacheConfig {
 
 data TimeCacheState = TimeCacheState {
     start   :: Timestamp
-,   kvStore :: TVar KVStore
-,   buckets :: TVar Buckets
+,   kvStore :: KVStore
+,   buckets :: Buckets
 }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
@@ -89,10 +91,10 @@ getPort = asks port
 getInterval :: TimeCache Int
 getInterval = asks interval
 
-getBuckets :: TimeCache (TVar Buckets)
+getBuckets :: TimeCache Buckets
 getBuckets = gets buckets
 
-getKVStore :: TimeCache (TVar KVStore)
+getKVStore :: TimeCache KVStore
 getKVStore = gets kvStore
 
 getStart :: TimeCache Timestamp

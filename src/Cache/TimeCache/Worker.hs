@@ -14,11 +14,12 @@ import           Control.Concurrent.STM.TVar
 import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.State
-import qualified Data.HashMap.Strict      as H
+import qualified Data.HashTable.IO as H
 import           Data.IORef
 import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           System.Posix.Unistd
+import GHC.Conc.Sync
 
 worker :: TimeCache ()
 worker = do
@@ -34,19 +35,18 @@ worker = do
         interval <- getInterval
 
         entries <- liftIO . atomically $ do
-            buckets <- readTVar mbuckets
-
-            case H.lookup now buckets of
+            res <- unsafeIOToSTM $ H.lookup mbuckets now
+            case res of
                 Just mbucket -> do
-                    bucket <- readTVar mbucket
-                    writeTVar mbuckets $ H.delete now buckets
-                    return $ H.toList bucket
+                    unsafeIOToSTM $ H.delete mbuckets now
+                    lt <- unsafeIOToSTM $ H.toList mbucket
+                    return lt
 
-                Nothing -> writeTVar mbuckets buckets >> return []
+                Nothing -> return []
 
         when (not . null $ entries) $
             void . liftIO . async . runT config state $
-                mapM_  (evict . snd) entries
+                mapM_  (evict . fst) entries
 
         nnow <- liftIO $ do
             threadDelay $ interval*10^6
@@ -55,13 +55,12 @@ worker = do
         --liftIO $ print $ show nnow
         handle now nnow
 
-    evict :: TVar TimeEntry -> TimeCache ()
-    evict me = do
+    evict :: Text -> TimeCache ()
+    evict key = do
         mkvStore <- getKVStore
         entry <- liftIO . atomically $ do
-            kvStore <- readTVar mkvStore
-            TimeEntry key _ _ <- readTVar me
-            case H.lookup key kvStore of
+            res <- unsafeIOToSTM $ H.lookup mkvStore key
+            case res of
                 Just e  -> readTVar e >>= return . Just
                 Nothing -> return Nothing
 

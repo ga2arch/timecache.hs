@@ -13,7 +13,7 @@ import           Control.Monad.Logger
 import           Control.Monad.Reader
 import           Data.Aeson
 import           Data.Either
-import qualified Data.HashMap.Strict          as H
+import qualified Data.HashTable.IO as H
 import           Data.String.Conversions
 import           Data.Text                    (Text, unpack)
 import           GHC.Conc.Sync
@@ -66,46 +66,43 @@ cacheEntry entry@(TimeEntry key value time) = do
     }
 
     liftIO . atomically $ do
-        kvStore <- readTVar mkvStore
+        res <- unsafeIOToSTM $ H.lookup mkvStore key
 
-        case H.lookup key kvStore of
+        case res of
             Just me -> do
                 entry <- readTVar me
                 writeTVar me correctedEntry
                 let oldTime = timeEntryTimestamp entry
                 when (oldTime /= newTime) $ do
-                    moveBucket mbuckets me key oldTime newTime
+                    moveBucket mbuckets key oldTime newTime
 
             Nothing -> do
                 me <- newTVar correctedEntry
-                writeTVar mkvStore $ H.insert key me kvStore
-                insertIntoBucket mbuckets me key newTime
+                unsafeIOToSTM $ H.insert mkvStore key me
+                insertIntoBucket mbuckets key newTime
 
     return ()
   where
-    moveBucket mbuckets me key oldTime newTime = do
-        buckets <- readTVar mbuckets
-
-        case H.lookup oldTime buckets of
-            Just mbucket -> do
-                bucket <- readTVar mbucket
-                writeTVar mbucket $ H.delete key bucket
+    --moveBucket :: Buckets -> Text -> Timestamp -> Timestamp -> STM ()
+    moveBucket mbuckets key oldTime newTime = do
+        res <- unsafeIOToSTM $ H.lookup mbuckets oldTime
+        case res of
+            Just mbucket ->
+                unsafeIOToSTM $ H.delete mbucket key
 
             Nothing -> return ()
 
-        insertIntoBucket mbuckets me key newTime
+        insertIntoBucket mbuckets key newTime
 
-    insertIntoBucket mbuckets me key time = do
-        buckets <- readTVar mbuckets
-
-        case H.lookup time buckets of
-            Just mbucket -> do
-                bucket <- readTVar mbucket
-                writeTVar mbucket $ H.insert key me bucket
+    insertIntoBucket mbuckets key time = do
+        res <- unsafeIOToSTM $ H.lookup mbuckets time
+        case res of
+            Just mbucket ->
+                unsafeIOToSTM $ H.insert mbucket key ()
 
             Nothing -> do
-                mbucket <- newTVar $ H.fromList [(key, me)]
-                writeTVar mbuckets $ H.insert time mbucket buckets
+                mbucket <- unsafeIOToSTM $ H.fromList [(key, ())]
+                unsafeIOToSTM $ H.insert mbuckets time mbucket
 
 appendLog :: Action -> TimeCache ()
 appendLog action = liftIO $
@@ -119,5 +116,7 @@ insertEntry entry = do
 deleteEntry :: Text -> TimeCache ()
 deleteEntry key = do
     mkvStore <- getKVStore
-    liftIO . atomically . modifyTVar' mkvStore $ H.delete key
+    liftIO . atomically $ do
+        unsafeIOToSTM $ H.delete mkvStore key
+
     appendLog $ Delete key
