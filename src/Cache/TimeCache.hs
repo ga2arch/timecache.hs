@@ -28,6 +28,7 @@ restoreEntries = do
     exists  <- liftIO $ doesFileExist "actions.log"
     when (exists) $ do
         !actions <- liftIO $ lines <$> readFile "actions.log"
+        liftIO $ putStrLn "Restoring entries"
         mapM_ (f . read) actions
   where
     f (Insert entry@(TimeEntry key value time)) = do
@@ -38,7 +39,6 @@ restoreEntries = do
         mkvStore <- getKVStore
         liftIO . atomically . modifyTVar' mkvStore $ H.delete key
 
-
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config@(TimeCacheConfig port hook interval) = do
     kvstore <- newTVarIO H.empty
@@ -46,5 +46,7 @@ runTimeCache config@(TimeCacheConfig port hook interval) = do
     start   <- round <$> getPOSIXTime
 
     let state = TimeCacheState start kvstore buckets
-    async $ runT config state $ restoreEntries >> worker
+
+    runT config state restoreEntries
+    async $ runT config state worker
     runT config state runHttpServer

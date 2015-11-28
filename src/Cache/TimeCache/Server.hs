@@ -37,23 +37,18 @@ server :: TServer ()
 server = do
     SCT.post "/insert" $ do
         entry@(TimeEntry key value time) <- SCT.jsonData
-
         lift $ insertEntry entry
-
         SCT.status status200
 
     SCT.delete "/delete/:key" $ do
         key <- SCT.param "key"
-        liftIO $ putStrLn $ "Deleting: " ++ show key
-
-
         lift $ deleteEntry key
-
         SCT.status status200
 
     -- SCT.get "/entries/:key" $ do
     --     key <- SCT.param "key"
     --
+    --     entry <- liftIO . atomically $
     --     case query of
     --         Just (entityVal -> entry) -> SCT.json entry
     --         Nothing                   -> SCT.status status404
