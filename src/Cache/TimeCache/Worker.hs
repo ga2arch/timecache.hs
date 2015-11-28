@@ -5,7 +5,6 @@ module Cache.TimeCache.Worker
     ( worker
     ) where
 
-import           Cache.TimeCache.Model
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Control.Concurrent
@@ -17,10 +16,8 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import qualified Data.HashMap.Strict      as H
 import           Data.IORef
-import           Data.Pool                (Pool)
 import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
-import           Database.Esqueleto       hiding (get)
 import           System.Posix.Unistd
 
 worker :: TimeCache ()

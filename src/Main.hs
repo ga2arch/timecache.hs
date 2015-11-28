@@ -7,13 +7,7 @@ import           Options.Applicative
 import           System.Environment
 
 config = TimeCacheConfig
-    <$> txtOption
-        (  long "db"
-        <> metavar "NAME"
-        <> value "timecache.sql"
-        <> help "The name of the db file")
-
-    <*> option auto
+    <$> option auto
         (  long "port"
         <> metavar "PORT"
         <> value 8080

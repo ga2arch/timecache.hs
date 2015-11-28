@@ -33,13 +33,12 @@ executable timecache
 
   other-modules:       Cache.TimeCache, Cache.TimeCache.Types,
                        Cache.TimeCache.Utils, Cache.TimeCache.Worker,
-                       Cache.TimeCache.Server, Cache.TimeCache.Model
+                       Cache.TimeCache.Server
 
   build-depends:       base >= 4.7 && < 5, streaming-commons, bytestring,
                        transformers, unordered-containers, time, hashable,
-                       async, persistent, persistent-sqlite, scotty,
-                       persistent-template, esqueleto, text, monad-logger,
-                       mtl, resourcet, resource-pool, aeson, http-types,
+                       async, scotty, text, monad-logger,
+                       mtl, aeson, http-types,
                        http-client, string-conversions, unix, stm,
                        exceptions, optparse-applicative, monad-control,
-                       transformers-base
+                       transformers-base, directory

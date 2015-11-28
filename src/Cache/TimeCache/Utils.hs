@@ -2,39 +2,23 @@
 {-# LANGUAGE LambdaCase          #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-module Cache.TimeCache.Utils
-    ( runDb
-    , evictEntry
-    , cacheEntry
-    , storeEntry
-    ) where
+module Cache.TimeCache.Utils where
 
-import           Cache.TimeCache.Model
 import           Cache.TimeCache.Types
-import Control.Concurrent.STM
+import           Control.Concurrent.STM
 import           Control.Concurrent.STM.TVar
 import qualified Control.Exception            as E
 import           Control.Monad
 import           Control.Monad.Logger
 import           Control.Monad.Reader
-import           Control.Monad.Trans
-import           Control.Monad.Trans.Resource
+import           Data.Aeson
 import           Data.Either
 import qualified Data.HashMap.Strict          as H
-import           Data.Aeson
-import           Data.Pool
 import           Data.String.Conversions
 import           Data.Text                    (Text, unpack)
-import           Database.Esqueleto
-import           Database.Persist.Sqlite      (createSqlitePool, runSqlPool)
+import           GHC.Conc.Sync
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
-import GHC.Conc.Sync
-
-runDb :: SqlPersistT (NoLoggingT (ResourceT TimeCache)) a -> TimeCache a
-runDb f = do
-    pool <- getPool
-    runResourceT $ runNoLoggingT $ runSqlPool f pool
 
 post :: Text -> TimeCache (Either HttpException Bool)
 post value = do
@@ -56,22 +40,17 @@ post value = do
 evictEntry :: TimeEntry -> TimeCache ()
 evictEntry e@(TimeEntry key value _) = do
     liftIO $ putStr $ "Evicting: " ++ (unpack value) ++ " ... "
-    mkv <- getKVStore
-
-    liftIO . atomically $
-        modifyTVar' mkv $ \kv -> H.delete key kv
-
-    runDb $ delete $ from $ \t ->
-        where_ (t ^. TimeEntryKey ==. val key)
+    deleteEntry key
 
     resp <- post value
-
     if isRight resp
         then liftIO $ putStrLn " OK."
         else liftIO $ putStrLn " Fail."
 
 cacheEntry :: TimeEntry -> TimeCache ()
 cacheEntry entry@(TimeEntry key value time) = do
+    liftIO $ putStrLn $ "Caching: " ++ show entry
+
     start    <- getStart
     mkvStore <- getKVStore
     mbuckets <- getBuckets
@@ -128,14 +107,17 @@ cacheEntry entry@(TimeEntry key value time) = do
                 mbucket <- newTVar $ H.fromList [(key, me)]
                 writeTVar mbuckets $ H.insert time mbucket buckets
 
-storeEntry :: TimeEntry -> TimeCache ()
-storeEntry entry@(TimeEntry key value time) = runDb $ do
-    e <- getEntry key
-    case e of
-        Just _ -> do
-            liftIO $ putStrLn $ "Updating:  " ++ show entry
-            updateEntry entry
+appendLog :: Action -> TimeCache ()
+appendLog action = liftIO $
+    appendFile "actions.log" $ show action ++ "\n"
 
-        Nothing -> do
-            liftIO $ putStrLn $ "Inserting:  " ++ show entry
-            insertEntry entry
+insertEntry :: TimeEntry -> TimeCache ()
+insertEntry entry = do
+    cacheEntry entry
+    appendLog $ Insert entry
+
+deleteEntry :: Text -> TimeCache ()
+deleteEntry key = do
+    mkvStore <- getKVStore
+    liftIO . atomically . modifyTVar' mkvStore $ H.delete key
+    appendLog $ Delete key

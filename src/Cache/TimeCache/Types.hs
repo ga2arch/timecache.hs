@@ -1,15 +1,18 @@
+{-# LANGUAGE DeriveGeneric              #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
 {-# LANGUAGE TypeFamilies               #-}
 module Cache.TimeCache.Types
-    ( TimeCacheConfig(..)
+    ( TimeEntry(..)
+    , TimeCacheConfig(..)
     , TimeCacheState(..)
     , TimeCache(..)
+    , Action(..)
     , KVStore
     , Timestamp
 
     , runT
-    , getPool
     , getHook
     , getPort
     , getInterval
@@ -18,35 +21,44 @@ module Cache.TimeCache.Types
     , getStart
     )where
 
-import           Cache.TimeCache.Model
 import           Control.Concurrent.STM.TVar
 import           Control.Monad.Base
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class      (MonadIO, liftIO)
 import           Control.Monad.Reader
 import           Control.Monad.State
-import           Control.Monad.Trans.Class
 import           Control.Monad.Trans.Control
+import           Data.Aeson
 import qualified Data.HashMap.Strict         as H
-import           Data.IORef
-import           Data.Pool                   (Pool)
 import           Data.Text                   (Text, unpack)
-import           Database.Esqueleto
+import           GHC.Generics                (Generic)
 
 type Timestamp = Int
 type KVStore   = H.HashMap Text (TVar TimeEntry)
 type Buckets   = H.HashMap Timestamp (TVar KVStore)
 
+data TimeEntry = TimeEntry {
+    timeEntryKey       :: Text
+,   timeEntryValue     :: Text
+,   timeEntryTimestamp :: Timestamp
+} deriving (Show, Read, Generic)
+
+instance ToJSON   TimeEntry
+instance FromJSON TimeEntry where
+    parseJSON (Object v) = TimeEntry <$>
+                          v .: "key"   <*>
+                          v .: "value" <*>
+                          v .: "timestamp"
+    parseJSON _          = mempty
+
 data TimeCacheConfig = TimeCacheConfig {
-    db       :: Text
-,   port     :: Int
+    port     :: Int
 ,   hook     :: Text
 ,   interval :: Int
 }
 
 data TimeCacheState = TimeCacheState {
-    pool    :: Pool SqlBackend
-,   start   :: Timestamp
+    start   :: Timestamp
 ,   kvStore :: TVar KVStore
 ,   buckets :: TVar Buckets
 }
@@ -61,11 +73,12 @@ instance MonadBaseControl IO TimeCache where
     liftBaseWith f = T . liftBaseWith $ \run -> f (run . unT)
     restoreM       = T . restoreM
 
+
+data Action = Insert TimeEntry | Delete Text
+    deriving (Show, Read)
+
 runT :: TimeCacheConfig -> TimeCacheState -> TimeCache a -> IO a
 runT config state f = evalStateT (runReaderT (unT f) config) state
-
-getPool :: TimeCache (Pool SqlBackend)
-getPool = gets pool
 
 getHook :: TimeCache Text
 getHook = asks hook

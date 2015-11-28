@@ -1,50 +1,50 @@
+{-# LANGUAGE BangPatterns        #-}
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ViewPatterns        #-}
 module Cache.TimeCache
     ( runTimeCache
     , TimeCacheConfig(..)
     ) where
 
-import           Cache.TimeCache.Model
 import           Cache.TimeCache.Server
 import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Cache.TimeCache.Worker
-import           Control.Concurrent.STM.TVar
 import           Control.Concurrent.Async
+import           Control.Concurrent.STM
+import           Control.Concurrent.STM.TVar
 import           Control.Monad                (when)
 import           Control.Monad.Logger         (runNoLoggingT)
 import           Control.Monad.Reader         (runReaderT)
 import           Control.Monad.State          (evalStateT)
 import           Control.Monad.Trans          (liftIO)
-import           Control.Monad.Trans.Resource (runResourceT)
+import qualified Data.HashMap.Strict          as H
 import           Data.Time.Clock.POSIX        (getPOSIXTime)
-import           Database.Esqueleto
-import           Database.Persist.Sqlite      (createSqlitePool)
-import qualified Data.HashMap.Strict         as H
+import           System.Directory
 
-evictOldEntries :: TimeCache ()
-evictOldEntries = do
-    entries <- runDb $ select $ from return
-    mapM_ f entries
+restoreEntries :: TimeCache ()
+restoreEntries = do
+    exists  <- liftIO $ doesFileExist "actions.log"
+    when (exists) $ do
+        !actions <- liftIO $ lines <$> readFile "actions.log"
+        mapM_ (f . read) actions
   where
-    f (entityVal -> entry@(TimeEntry key value time)) = do
+    f (Insert entry@(TimeEntry key value time)) = do
         now <- liftIO $ round <$> getPOSIXTime
-        if time <= now
-            then evictEntry entry
-            else cacheEntry entry
+        when (time >= now) $ cacheEntry entry
+
+    f (Delete key) = do
+        mkvStore <- getKVStore
+        liftIO . atomically . modifyTVar' mkvStore $ H.delete key
+
 
 runTimeCache :: TimeCacheConfig -> IO ()
-runTimeCache config@(TimeCacheConfig db port hook interval) = do
-    pool  <- runNoLoggingT $ createSqlitePool db 5
-    runResourceT $ runNoLoggingT $ runSqlPool (runMigration migrateTables) pool
-
+runTimeCache config@(TimeCacheConfig port hook interval) = do
     kvstore <- newTVarIO H.empty
     buckets <- newTVarIO H.empty
     start   <- round <$> getPOSIXTime
 
-    let state = TimeCacheState pool start kvstore buckets
-    async $ runT config state $ evictOldEntries >> worker
+    let state = TimeCacheState start kvstore buckets
+    async $ runT config state $ restoreEntries >> worker
     runT config state runHttpServer
