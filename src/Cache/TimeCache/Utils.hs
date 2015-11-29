@@ -52,7 +52,7 @@ evictEntry e@(TimeEntry key value _) = do
 
 cacheEntry :: TimeEntry -> TimeCache ()
 cacheEntry entry@(TimeEntry key value time) = do
-    liftIO $ putStr $ "Caching: " ++ show entry ++ " ... "
+    liftIO $ putStrLn $ "Caching: " ++ show entry
 
     start    <- getStart
     mkvStore <- getKVStore
@@ -108,10 +108,8 @@ cacheEntry entry@(TimeEntry key value time) = do
                 H.insert buckets time bucket
 
 appendLog :: Action -> TimeCache ()
-appendLog action = do
-    handle <- getLogFile
-    liftIO $ CL.appendFile "actions.log" $ CL.fromStrict $ serializeAction action
-    return ()
+appendLog action =
+    liftIO $ C.appendFile "actions.log" (serializeAction action)
 
 insertEntry :: TimeEntry -> TimeCache ()
 insertEntry entry = do

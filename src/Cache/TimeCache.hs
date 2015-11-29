@@ -17,7 +17,7 @@ import           Control.Concurrent.MVar
 import           Control.Monad            (when)
 import           Control.Monad.Logger     (runNoLoggingT)
 import           Control.Monad.Reader     (runReaderT)
-import           Control.Monad.State      (evalStateT)
+import           Control.Monad.State      (evalStateT, get, put)
 import           Control.Monad.Trans      (liftIO)
 import qualified Data.ByteString.Char8    as C
 import qualified Data.HashTable.IO        as H
@@ -28,12 +28,14 @@ import           System.Posix.Signals
 
 restoreEntries :: TimeCache ()
 restoreEntries = do
-    liftIO $ putStrLn "Restoring entries"
-    handle  <- getLogFile
-    content <- liftIO $ C.hGetContents handle
-    case deserialize content of
-        Left err      -> return ()
-        Right actions -> mapM_ f actions
+    exists <- liftIO $ doesFileExist "actions.log"
+    when (exists) $ do
+        liftIO $ putStrLn "Restoring entries"
+        content <- liftIO $ C.readFile "actions.log"
+        case deserialize content of
+            Left err      -> return ()
+            Right actions -> mapM_ f actions
+
   where
     f (Insert entry) = do
         now <- liftIO $ round <$> getPOSIXTime
@@ -47,13 +49,8 @@ runTimeCache config@(TimeCacheConfig port hook interval) = do
     buckets <- H.new >>= newMVar
     start   <- round <$> getPOSIXTime
 
-    handle <- openFile "actions.log" ReadWriteMode
-    hSetBuffering handle NoBuffering
-
-    let state = TimeCacheState start kvstore buckets handle
-
-    installHandler sigTERM (Catch $ hClose handle) Nothing
-
+    let state = TimeCacheState start kvstore buckets
+    --installHandler sigTERM (Catch $ hClose handle) Nothing
     runT config state restoreEntries
     async $ runT config state worker
     runT config state runHttpServer

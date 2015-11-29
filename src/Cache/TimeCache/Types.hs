@@ -18,7 +18,6 @@ module Cache.TimeCache.Types
     , runT
     , getHook
     , getPort
-    , getLogFile
     , getInterval
     , getBuckets
     , getKVStore
@@ -61,7 +60,6 @@ data TimeCacheState = TimeCacheState {
     start   :: Timestamp
 ,   kvStore :: MVar KVStore
 ,   buckets :: MVar Buckets
-,   logFile :: Handle
 }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
@@ -87,9 +85,6 @@ getHook = asks hook
 
 getPort :: TimeCache Int
 getPort = asks port
-
-getLogFile :: TimeCache Handle
-getLogFile = gets logFile
 
 getInterval :: TimeCache Int
 getInterval = asks interval
