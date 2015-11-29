@@ -13,7 +13,7 @@ import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Cache.TimeCache.Worker
 import           Control.Concurrent
-import           Control.Concurrent.Asyn
+import           Control.Concurrent.Async
 import           Control.Monad            (when)
 import           Control.Monad.Reader     (runReaderT)
 import           Control.Monad.State      (evalStateT, get, put)
