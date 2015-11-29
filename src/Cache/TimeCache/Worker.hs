@@ -9,17 +9,15 @@ import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Control.Concurrent
 import           Control.Concurrent.Async
-import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TVar
 import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.State
-import qualified Data.HashTable.IO as H
+import qualified Data.HashTable.IO           as H
 import           Data.IORef
-import           Data.Text                (Text, unpack)
+import           Data.Text                   (Text, unpack)
 import           Data.Time.Clock.POSIX
+import           GHC.Conc.Sync
 import           System.Posix.Unistd
-import GHC.Conc.Sync
 
 worker :: TimeCache ()
 worker = do
