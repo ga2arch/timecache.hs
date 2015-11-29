@@ -10,7 +10,6 @@ config = TimeCacheConfig
     <$> option auto
         (  long "port"
         <> metavar "PORT"
-        <> value 8080
         <> help "The port to listen on")
 
     <*> txtOption
@@ -33,3 +32,4 @@ main = execParser opts >>= runTimeCache
         ( fullDesc
         <> progDesc "Run the cache"
         <> header "timecache - simple cache with expiring events" )
+

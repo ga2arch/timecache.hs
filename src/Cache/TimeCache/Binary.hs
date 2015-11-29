@@ -27,16 +27,16 @@ serializeEntry (TimeEntry key value time) = do
 
 serializeAction (Insert entry) = do
     let e = serializeEntry entry
-    let b = fromWrite $ writeInt32be (fromIntegral 0)
+    let b = fromWrite $ writeInt8 0
             <> writeByteString e
     toByteString b
 
 serializeAction (Delete key) = do
-    let b = fromWrite $ writeInt32be (fromIntegral 1)
-            <> writeByteString key
+    let b = fromWrite $ writeInt8 1
+            <> writeByteString key 
     toByteString b
 
-deserialize b = parseOnly (many1' actionParser) b
+deserialize = parseOnly (many' actionParser)
 
 insertParser = do
     keySize   <- anyWord32be
@@ -52,7 +52,7 @@ deleteParser = do
     return $ Delete key
 
 actionParser = do
-    action <- anyWord32be
-    case (fromIntegral action) of
+    action <- anyWord8
+    case fromIntegral action of
         0 -> insertParser
         1 -> deleteParser

@@ -32,7 +32,7 @@ import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Control
 import           Data.ByteString             (ByteString)
-import qualified Data.ByteString      as B
+import qualified Data.ByteString             as B
 import qualified Data.HashTable.IO           as H
 import           Data.Text                   (Text, unpack)
 import           GHC.IO.Handle
@@ -74,7 +74,6 @@ instance MonadBaseControl IO TimeCache where
 
 data Action = Insert TimeEntry | Delete Key
     deriving (Show, Read)
-
 
 
 runT :: TimeCacheConfig -> TimeCacheState -> TimeCache a -> IO a

@@ -1,3 +1,4 @@
+
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -12,10 +13,8 @@ import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Cache.TimeCache.Worker
 import           Control.Concurrent
-import           Control.Concurrent.Async
-import           Control.Concurrent.MVar
+import           Control.Concurrent.Asyn
 import           Control.Monad            (when)
-import           Control.Monad.Logger     (runNoLoggingT)
 import           Control.Monad.Reader     (runReaderT)
 import           Control.Monad.State      (evalStateT, get, put)
 import           Control.Monad.Trans      (liftIO)
@@ -44,7 +43,7 @@ restoreEntries = do
     f (Delete key) = deleteKeyFromStore key
 
 runTimeCache :: TimeCacheConfig -> IO ()
-runTimeCache config@(TimeCacheConfig port hook interval) = do
+runTimeCache config = do
     kvstore <- H.new >>= newMVar
     buckets <- H.new >>= newMVar
     start   <- round <$> getPOSIXTime
