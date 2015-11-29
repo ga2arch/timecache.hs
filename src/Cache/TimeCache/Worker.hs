@@ -34,19 +34,20 @@ worker = do
         mbuckets <- getBuckets
         interval <- getInterval
 
-        entries <- liftIO . atomically $ do
-            res <- unsafeIOToSTM $ H.lookup mbuckets now
+        liftIO $ do
+            buckets <- takeMVar mbuckets
+
+            res <- H.lookup buckets now
             case res of
-                Just mbucket -> do
-                    unsafeIOToSTM $ H.delete mbuckets now
-                    lt <- unsafeIOToSTM $ H.toList mbucket
-                    return lt
+                Just bucket -> do
+                    H.delete buckets now
+                    putMVar mbuckets buckets
 
-                Nothing -> return []
+                    void . liftIO . async $
+                        H.mapM_ (runT config state . evictKey . fst) bucket
 
-        when (not . null $ entries) $
-            void . liftIO . async . runT config state $
-                mapM_  (evict . fst) entries
+                Nothing -> do
+                    putMVar mbuckets buckets
 
         nnow <- liftIO $ do
             threadDelay $ interval*10^6
@@ -55,14 +56,9 @@ worker = do
         --liftIO $ print $ show nnow
         handle now nnow
 
-    evict :: Text -> TimeCache ()
-    evict key = do
-        mkvStore <- getKVStore
-        entry <- liftIO . atomically $ do
-            res <- unsafeIOToSTM $ H.lookup mkvStore key
-            case res of
-                Just e  -> readTVar e >>= return . Just
-                Nothing -> return Nothing
+    evictKey :: Text -> TimeCache ()
+    evictKey key = do
+        entry <- getEntry key
 
         case entry of
             Just e  -> evictEntry e

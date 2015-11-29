@@ -22,7 +22,7 @@ module Cache.TimeCache.Types
     , getStart
     )where
 
-import           Control.Concurrent.STM.TVar
+import           Control.Concurrent.MVar
 import           Control.Monad.Base
 import           Control.Monad.Catch
 import           Control.Monad.IO.Class      (MonadIO, liftIO)
@@ -36,7 +36,7 @@ import           GHC.Generics                (Generic)
 
 type HashTable k v = H.CuckooHashTable k v
 type Timestamp = Int
-type KVStore   = HashTable Text (TVar TimeEntry)
+type KVStore   = HashTable Text TimeEntry
 type Buckets   = HashTable Timestamp (HashTable Text ())
 
 data TimeEntry = TimeEntry {
@@ -61,8 +61,8 @@ data TimeCacheConfig = TimeCacheConfig {
 
 data TimeCacheState = TimeCacheState {
     start   :: Timestamp
-,   kvStore :: KVStore
-,   buckets :: Buckets
+,   kvStore :: MVar KVStore
+,   buckets :: MVar Buckets
 }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
@@ -91,10 +91,10 @@ getPort = asks port
 getInterval :: TimeCache Int
 getInterval = asks interval
 
-getBuckets :: TimeCache Buckets
+getBuckets :: TimeCache (MVar Buckets)
 getBuckets = gets buckets
 
-getKVStore :: TimeCache KVStore
+getKVStore :: TimeCache (MVar KVStore)
 getKVStore = gets kvStore
 
 getStart :: TimeCache Timestamp

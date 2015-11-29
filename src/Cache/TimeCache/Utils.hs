@@ -5,8 +5,7 @@
 module Cache.TimeCache.Utils where
 
 import           Cache.TimeCache.Types
-import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TVar
+import           Control.Concurrent.MVar
 import qualified Control.Exception            as E
 import           Control.Monad
 import           Control.Monad.Logger
@@ -65,45 +64,45 @@ cacheEntry entry@(TimeEntry key value time) = do
         timeEntryTimestamp = newTime
     }
 
-    liftIO . atomically $ do
-        res <- unsafeIOToSTM $ H.lookup mkvStore key
+    liftIO $ do
+        kvStore <- takeMVar mkvStore
+        buckets <- takeMVar mbuckets
+
+        res <- H.lookup kvStore key
 
         case res of
-            Just me -> do
-                entry <- readTVar me
-                writeTVar me correctedEntry
+            Just entry -> do
+                H.insert kvStore key correctedEntry
                 let oldTime = timeEntryTimestamp entry
                 when (oldTime /= newTime) $ do
-                    moveBucket mbuckets key oldTime newTime
+                    moveBucket buckets key oldTime newTime
 
             Nothing -> do
-                me <- newTVar correctedEntry
-                unsafeIOToSTM $ H.insert mkvStore key me
-                insertIntoBucket mbuckets key newTime
+                H.insert kvStore key correctedEntry
+                insertIntoBucket buckets key newTime
+
+        putMVar mbuckets buckets
+        putMVar mkvStore kvStore
 
     return ()
   where
-    moveBucket :: Buckets -> Text -> Timestamp -> Timestamp -> STM ()
-    moveBucket mbuckets key oldTime newTime = do
-        res <- unsafeIOToSTM $ H.lookup mbuckets oldTime
+    moveBucket :: Buckets -> Text -> Timestamp -> Timestamp -> IO ()
+    moveBucket buckets key oldTime newTime = do
+        res <- H.lookup buckets oldTime
         case res of
-            Just mbucket ->
-                unsafeIOToSTM $ H.delete mbucket key
+            Just bucket -> H.delete bucket key
+            Nothing      -> return ()
 
-            Nothing -> return ()
+        insertIntoBucket buckets key newTime
 
-        insertIntoBucket mbuckets key newTime
-
-    insertIntoBucket :: Buckets -> Text -> Timestamp -> STM ()
-    insertIntoBucket mbuckets key time = do
-        res <- unsafeIOToSTM $ H.lookup mbuckets time
+    insertIntoBucket :: Buckets -> Text -> Timestamp -> IO ()
+    insertIntoBucket buckets key time = do
+        res <- H.lookup buckets time
         case res of
-            Just mbucket ->
-                unsafeIOToSTM $ H.insert mbucket key ()
-
+            Just bucket -> H.insert bucket key ()
             Nothing -> do
-                mbucket <- unsafeIOToSTM $ H.fromList [(key, ())]
-                unsafeIOToSTM $ H.insert mbuckets time mbucket
+                bucket <- H.fromList [(key, ())]
+                H.insert buckets time bucket
 
 appendLog :: Action -> TimeCache ()
 appendLog action = liftIO $
@@ -117,22 +116,27 @@ insertEntry entry = do
 deleteEntry :: Text -> TimeCache ()
 deleteEntry key = do
     mkvStore <- getKVStore
-    liftIO . atomically $
-        unsafeIOToSTM $ H.delete mkvStore key
+    liftIO $ do
+        kvStore <- takeMVar mkvStore
+        H.delete kvStore key
+        putMVar mkvStore kvStore
 
     appendLog $ Delete key
 
 getEntry :: Text -> TimeCache (Maybe TimeEntry)
 getEntry key = do
     mkvStore <- getKVStore
-    liftIO . atomically $ do
-        res <- unsafeIOToSTM $ H.lookup mkvStore key
+    liftIO $ do
+        kvStore <- readMVar mkvStore
+        res <- H.lookup kvStore key
         case res of
-            Just me -> readTVar me >>= return . Just
+            Just me -> return $ Just me
             Nothing -> return Nothing
 
 deleteKeyFromStore :: Text -> TimeCache ()
 deleteKeyFromStore key = do
     mkvStore <- getKVStore
-    liftIO . atomically $
-        unsafeIOToSTM $ H.delete mkvStore key
+    liftIO $ do
+        kvStore <- takeMVar mkvStore
+        H.delete kvStore key
+        putMVar mkvStore kvStore
