@@ -11,11 +11,14 @@ module Cache.TimeCache.Types
     , Action(..)
     , KVStore
     , Buckets
+    , Key
+    , Value
     , Timestamp
 
     , runT
     , getHook
     , getPort
+    , getLogFile
     , getInterval
     , getBuckets
     , getKVStore
@@ -29,29 +32,24 @@ import           Control.Monad.IO.Class      (MonadIO, liftIO)
 import           Control.Monad.Reader
 import           Control.Monad.State
 import           Control.Monad.Trans.Control
-import           Data.Aeson
-import qualified Data.HashTable.IO as H
+import           Data.ByteString             (ByteString)
+import qualified Data.ByteString      as B
+import qualified Data.HashTable.IO           as H
 import           Data.Text                   (Text, unpack)
-import           GHC.Generics                (Generic)
+import           GHC.IO.Handle
 
 type HashTable k v = H.CuckooHashTable k v
+type Key       = ByteString
+type Value     = ByteString
 type Timestamp = Int
-type KVStore   = HashTable Text TimeEntry
-type Buckets   = HashTable Timestamp (HashTable Text ())
+type KVStore   = HashTable Key TimeEntry
+type Buckets   = HashTable Timestamp (HashTable Key ())
 
 data TimeEntry = TimeEntry {
-    timeEntryKey       :: Text
-,   timeEntryValue     :: Text
-,   timeEntryTimestamp :: Timestamp
-} deriving (Show, Read, Generic)
-
-instance ToJSON   TimeEntry
-instance FromJSON TimeEntry where
-    parseJSON (Object v) = TimeEntry <$>
-                          v .: "key"   <*>
-                          v .: "value" <*>
-                          v .: "timestamp"
-    parseJSON _          = mempty
+    timeEntryKey       :: !Key
+,   timeEntryValue     :: !Value
+,   timeEntryTimestamp :: !Timestamp
+} deriving (Show, Read)
 
 data TimeCacheConfig = TimeCacheConfig {
     port     :: Int
@@ -63,6 +61,7 @@ data TimeCacheState = TimeCacheState {
     start   :: Timestamp
 ,   kvStore :: MVar KVStore
 ,   buckets :: MVar Buckets
+,   logFile :: Handle
 }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
@@ -75,9 +74,10 @@ instance MonadBaseControl IO TimeCache where
     liftBaseWith f = T . liftBaseWith $ \run -> f (run . unT)
     restoreM       = T . restoreM
 
-
-data Action = Insert TimeEntry | Delete Text
+data Action = Insert TimeEntry | Delete Key
     deriving (Show, Read)
+
+
 
 runT :: TimeCacheConfig -> TimeCacheState -> TimeCache a -> IO a
 runT config state f = evalStateT (runReaderT (unT f) config) state
@@ -87,6 +87,9 @@ getHook = asks hook
 
 getPort :: TimeCache Int
 getPort = asks port
+
+getLogFile :: TimeCache Handle
+getLogFile = gets logFile
 
 getInterval :: TimeCache Int
 getInterval = asks interval

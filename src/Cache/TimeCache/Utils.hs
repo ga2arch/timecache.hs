@@ -4,22 +4,26 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Cache.TimeCache.Utils where
 
+import           Cache.TimeCache.Binary
 import           Cache.TimeCache.Types
 import           Control.Concurrent.MVar
-import qualified Control.Exception            as E
+import qualified Control.Exception          as E
 import           Control.Monad
 import           Control.Monad.Logger
 import           Control.Monad.Reader
-import           Data.Aeson
+import           Data.ByteString            (ByteString)
+import qualified Data.ByteString            as B
+import qualified Data.ByteString.Char8      as C
+import qualified Data.ByteString.Lazy       as BL
+import qualified Data.ByteString.Lazy.Char8 as CL
 import           Data.Either
-import qualified Data.HashTable.IO as H
-import           Data.String.Conversions
-import           Data.Text                    (Text, unpack)
-import           GHC.Conc.Sync
+import qualified Data.HashTable.IO          as H
+import           Data.Monoid                ((<>))
+import           Data.Text                  (Text, unpack)
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
 
-post :: Text -> TimeCache (Either HttpException Bool)
+post :: Value -> TimeCache (Either HttpException Bool)
 post value = do
     hook <- getHook
 
@@ -28,7 +32,7 @@ post value = do
 
     let request = initialRequest {
         method = "POST"
-    ,   requestBody = RequestBodyLBS $ cs value
+    ,   requestBody = RequestBodyLBS $ BL.fromStrict value
     }
 
     response <- liftIO $ E.try $ httpLbs request manager
@@ -38,7 +42,7 @@ post value = do
 
 evictEntry :: TimeEntry -> TimeCache ()
 evictEntry e@(TimeEntry key value _) = do
-    liftIO $ putStr $ "Evicting: " ++ (unpack value) ++ " ... "
+    liftIO $ putStr $ "Evicting: " ++ (C.unpack value) ++ " ... "
     deleteEntry key
 
     resp <- post value
@@ -48,7 +52,7 @@ evictEntry e@(TimeEntry key value _) = do
 
 cacheEntry :: TimeEntry -> TimeCache ()
 cacheEntry entry@(TimeEntry key value time) = do
-    --liftIO $ putStrLn $ "Caching: " ++ show entry
+    liftIO $ putStr $ "Caching: " ++ show entry ++ " ... "
 
     start    <- getStart
     mkvStore <- getKVStore
@@ -69,7 +73,6 @@ cacheEntry entry@(TimeEntry key value time) = do
         buckets <- takeMVar mbuckets
 
         res <- H.lookup kvStore key
-
         case res of
             Just entry -> do
                 H.insert kvStore key correctedEntry
@@ -86,7 +89,7 @@ cacheEntry entry@(TimeEntry key value time) = do
 
     return ()
   where
-    moveBucket :: Buckets -> Text -> Timestamp -> Timestamp -> IO ()
+    moveBucket :: Buckets -> Key -> Timestamp -> Timestamp -> IO ()
     moveBucket buckets key oldTime newTime = do
         res <- H.lookup buckets oldTime
         case res of
@@ -95,7 +98,7 @@ cacheEntry entry@(TimeEntry key value time) = do
 
         insertIntoBucket buckets key newTime
 
-    insertIntoBucket :: Buckets -> Text -> Timestamp -> IO ()
+    insertIntoBucket :: Buckets -> Key -> Timestamp -> IO ()
     insertIntoBucket buckets key time = do
         res <- H.lookup buckets time
         case res of
@@ -105,15 +108,17 @@ cacheEntry entry@(TimeEntry key value time) = do
                 H.insert buckets time bucket
 
 appendLog :: Action -> TimeCache ()
-appendLog action = liftIO $
-    appendFile "actions.log" $ show action ++ "\n"
+appendLog action = do
+    handle <- getLogFile
+    liftIO $ CL.appendFile "actions.log" $ CL.fromStrict $ serializeAction action
+    return ()
 
 insertEntry :: TimeEntry -> TimeCache ()
 insertEntry entry = do
     cacheEntry entry
     appendLog $ Insert entry
 
-deleteEntry :: Text -> TimeCache ()
+deleteEntry :: Key -> TimeCache ()
 deleteEntry key = do
     mkvStore <- getKVStore
     liftIO $ do
@@ -123,7 +128,7 @@ deleteEntry key = do
 
     appendLog $ Delete key
 
-getEntry :: Text -> TimeCache (Maybe TimeEntry)
+getEntry :: Key -> TimeCache (Maybe TimeEntry)
 getEntry key = do
     mkvStore <- getKVStore
     liftIO $ do
@@ -133,7 +138,7 @@ getEntry key = do
             Just me -> return $ Just me
             Nothing -> return Nothing
 
-deleteKeyFromStore :: Text -> TimeCache ()
+deleteKeyFromStore :: Key -> TimeCache ()
 deleteKeyFromStore key = do
     mkvStore <- getKVStore
     liftIO $ do

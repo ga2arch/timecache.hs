@@ -54,7 +54,7 @@ worker = do
         --liftIO $ print $ show nnow
         handle now nnow
 
-    evictKey :: Text -> TimeCache ()
+    evictKey :: Key -> TimeCache ()
     evictKey key = do
         entry <- getEntry key
 
