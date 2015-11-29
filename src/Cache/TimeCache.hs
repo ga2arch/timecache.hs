@@ -28,7 +28,7 @@ import           System.Posix.Signals
 restoreEntries :: TimeCache ()
 restoreEntries = do
     exists <- liftIO $ doesFileExist "actions.log"
-    when (exists) $ do
+    when exists $ do
         liftIO $ putStrLn "Restoring entries"
         content <- liftIO $ C.readFile "actions.log"
         case deserialize content of

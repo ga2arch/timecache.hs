@@ -17,11 +17,11 @@ import           Prelude                             hiding (take)
 serializeEntry (TimeEntry key value time) = do
     let keySize   = B.length key
     let valueSize = B.length value
-    let b = fromWrite $ writeInt32be (fromIntegral keySize)
+    let b = fromWrite $ writeWord32be (fromIntegral keySize)
             <> writeByteString key
-            <> writeInt32be (fromIntegral valueSize)
+            <> writeWord32be (fromIntegral valueSize)
             <> writeByteString value
-            <> writeInt32be (fromIntegral time)
+            <> writeWord64be (fromIntegral time)
 
     toByteString b
 
@@ -43,7 +43,7 @@ insertParser = do
     key       <- take $ fromIntegral keySize
     valueSize <- anyWord32be
     value     <- take $ fromIntegral valueSize
-    timestamp <- anyWord32be
+    timestamp <- anyWord64be
     return $ Insert $ TimeEntry key value $ fromIntegral timestamp
 
 deleteParser = do
