@@ -56,7 +56,9 @@ serializeAction (Insert entry) = do
     toByteString b
 
 serializeAction (Delete key) = do
+    let size = sizeToWords $ B.length key
     let b = fromWrite $ writeWord8 1
+            <> writeSize size
             <> writeByteString key 
     toByteString b
 

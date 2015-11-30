@@ -18,6 +18,7 @@ import           Data.Text                   (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           GHC.Conc.Sync
 import           System.Posix.Unistd
+import System.Mem
 
 worker :: TimeCache ()
 worker = do
@@ -41,8 +42,9 @@ worker = do
                     H.delete buckets now
                     putMVar mbuckets buckets
 
-                    void . liftIO . async $
+                    void . liftIO . async $ do
                         H.mapM_ (runT config state . evictKey . fst) bucket
+                        performGC
 
                 Nothing -> do
                     putMVar mbuckets buckets

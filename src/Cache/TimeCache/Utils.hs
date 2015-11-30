@@ -118,6 +118,7 @@ insertEntry entry = do
 
 deleteEntry :: Key -> TimeCache ()
 deleteEntry key = do
+    liftIO $ putStrLn $ "Deleting key: " ++ show key
     mkvStore <- getKVStore
     liftIO $ do
         kvStore <- takeMVar mkvStore

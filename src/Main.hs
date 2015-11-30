@@ -22,15 +22,15 @@ config = TimeCacheConfig
         ( long "interval"
         <> metavar "TIME"
         <> value 1
-        <> help "The interval between two checks") 
+        <> help "The interval between two checks")
   where
     txtOption = fmap pack . strOption
 
-main :: IO () 
+main :: IO ()
 main = execParser opts >>= runTimeCache
   where
     opts = info (helper <*> config)
         ( fullDesc
         <> progDesc "Run the cache"
         <> header "timecache - simple cache with expiring events" )
-
+        

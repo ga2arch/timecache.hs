@@ -55,3 +55,4 @@ executable timecache
         -threaded
         -rtsopts
         "-with-rtsopts=-N4"
+        -fno-prof-auto
