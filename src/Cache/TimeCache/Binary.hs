@@ -21,30 +21,28 @@ serializeEntry (TimeEntry key value time) = do
     let valueSize = sizeToWords $ B.length value
     let b = fromWrite $ writeSize keySize
             <> writeByteString key
-            <> writeSize valueSize 
+            <> writeSize valueSize
             <> writeByteString value
             <> writeWord64be (fromIntegral time)
     toByteString b
 
 writeSize (x, 0, 0, 0) = writeWord8 x
-writeSize (x, a, b, 0) = writeWord8 x
-                         <> writeWord8 a
-                         <> writeWord8 b
-writeSize (x, a, b, c) = writeWord8 x
-                       <> writeWord8 a
-                       <> writeWord8 b
-                       <> writeWord16le c
+writeSize (x, a, b, 0) = mconcat [writeWord8 x, writeWord8 a, writeWord8 b]
+writeSize (x, a, b, c) = mconcat [writeWord8 x, writeWord8 a,
+                                  writeWord8 b, writeWord16le c]
 
 sizeToWords :: Int -> (Word8, Word8, Word8, Word16)
 sizeToWords x | x < 255 = (fromIntegral x, 0, 0, 0)
-              | x > 254 && x < 65536 =
-              (254,
-               fromIntegral $ x .&. 0xFF,
-               fromIntegral $ (x .&. 0xFFFF) `shiftR` 8, 0)
-              | otherwise =
-              (255,
-               fromIntegral $ x .&. 0xFF,
-               fromIntegral $ (x .&. 0xFFFF) `shiftR` 8, fromIntegral $ x `shiftR` 16)
+              | x > 254 && x < 65536 = (254, fromIntegral $ fstByte x,
+                                             fromIntegral $ sndByte x,
+                                             0)
+              | otherwise =  (255, fromIntegral $ fstByte x,
+                                   fromIntegral $ sndByte x,
+                                   fromIntegral $ thdByte x)
+  where
+    fstByte x = x .&. 0xFF
+    sndByte x = (x .&. 0xFFFF) `shiftR` 8
+    thdByte x = x `shiftR` 16
 
 words8toWord16 :: Word8 -> Word8 -> Word16
 words8toWord16 a b = (fromIntegral  b) `shiftL` 8 .|. (fromIntegral a)

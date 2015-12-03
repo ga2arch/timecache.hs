@@ -33,4 +33,3 @@ main = execParser opts >>= runTimeCache
         ( fullDesc
         <> progDesc "Run the cache"
         <> header "timecache - simple cache with expiring events" )
-        

@@ -6,6 +6,7 @@ module Cache.TimeCache.Utils where
 
 import           Cache.TimeCache.Binary
 import           Cache.TimeCache.Types
+import           Control.Concurrent.Chan
 import           Control.Concurrent.MVar
 import qualified Control.Exception          as E
 import           Control.Monad
@@ -108,8 +109,9 @@ cacheEntry entry@(TimeEntry key value time) = do
                 H.insert buckets time bucket
 
 appendLog :: Action -> TimeCache ()
-appendLog action =
-    liftIO $ C.appendFile "actions.log" (serializeAction action)
+appendLog action = do
+    chan <- getChan
+    liftIO $ writeChan chan action
 
 insertEntry :: TimeEntry -> TimeCache ()
 insertEntry entry = do

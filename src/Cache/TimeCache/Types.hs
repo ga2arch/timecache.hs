@@ -21,9 +21,11 @@ module Cache.TimeCache.Types
     , getInterval
     , getBuckets
     , getKVStore
+    , getChan
     , getStart
     )where
 
+import           Control.Concurrent.Chan
 import           Control.Concurrent.MVar
 import           Control.Monad.Base
 import           Control.Monad.Catch
@@ -60,6 +62,7 @@ data TimeCacheState = TimeCacheState {
     start   :: Timestamp
 ,   kvStore :: MVar KVStore
 ,   buckets :: MVar Buckets
+,   chan    :: Chan Action
 }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
@@ -93,6 +96,9 @@ getBuckets = gets buckets
 
 getKVStore :: TimeCache (MVar KVStore)
 getKVStore = gets kvStore
+
+getChan :: TimeCache (Chan Action)
+getChan = gets chan
 
 getStart :: TimeCache Timestamp
 getStart = gets start
