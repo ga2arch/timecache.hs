@@ -34,15 +34,14 @@ writeSize (x, a, b, c) = mconcat [writeWord8 x, writeWord8 a,
 sizeToWords :: Int -> (Word8, Word8, Word8, Word16)
 sizeToWords x | x < 255 = (fromIntegral x, 0, 0, 0)
               | x > 254 && x < 65536 = (254, fromIntegral $ fstByte x,
-                                             fromIntegral $ sndByte x,
-                                             0)
+                                             fromIntegral $ sndByte x, 0)
               | otherwise =  (255, fromIntegral $ fstByte x,
                                    fromIntegral $ sndByte x,
-                                   fromIntegral $ thdByte x)
+                                   fromIntegral $ lastBytes x)
   where
-    fstByte x = x .&. 0xFF
-    sndByte x = (x .&. 0xFFFF) `shiftR` 8
-    thdByte x = x `shiftR` 16
+    fstByte x   = x .&. 0xFF
+    sndByte x   = (x .&. 0xFFFF) `shiftR` 8
+    lastBytes x = x `shiftR` 16
 
 words8toWord16 :: Word8 -> Word8 -> Word16
 words8toWord16 a b = (fromIntegral  b) `shiftL` 8 .|. (fromIntegral a)
@@ -87,12 +86,12 @@ insertParser = do
     valueSize <- parseSize
     value     <- take $ fromIntegral valueSize
     timestamp <- anyWord64be
-    return $ Insert $ TimeEntry key value $ fromIntegral timestamp
+    return $! Insert $ TimeEntry key value $ fromIntegral timestamp
 
 deleteParser = do
     keySize <- parseSize
     key     <- take $ fromIntegral keySize
-    return $ Delete key
+    return $! Delete key
 
 actionParser = do
     action <- anyWord8

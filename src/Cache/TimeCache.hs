@@ -47,24 +47,27 @@ restoreEntries = do
 
 logger :: MVar KVStore -> String -> Chan Action -> IO ()
 logger mkvStore filename chan = do
-    handle <- openFile filename AppendMode
-    size   <- fileSize <$> getFileStatus filename
-    go handle size
+    (handle, size) <- hs filename
+    go handle size (10^6)
   where
-    go handle size =  
-        if (size >= 10^6)
-          then do
-              putStrLn "Rebuilding log"
-              hClose handle
-              rebuildLog
-              handle <- openFile filename AppendMode
-              size   <- fileSize <$> getFileStatus filename
-              go handle size
-           else do
-               action  <- readChan chan
-               let bdata = serializeAction action
-               C.hPut handle bdata
-               go handle (size + (fromIntegral $ C.length bdata))
+    go handle size maxSize 
+        | size >= maxSize = handleOverflow handle maxSize >>= appendData
+        | otherwise       = appendData (handle, size, maxSize)
+
+    handleOverflow handle maxSize = do
+        putStrLn "Rebuilding log"
+        hClose handle
+        rebuildLog
+        (handle, size) <- hs filename
+        if size >= maxSize
+           then return (handle, size, (maxSize * 10))
+           else return (handle, size, maxSize)
+
+    appendData (handle, size, maxSize) = do
+        action  <- readChan chan
+        let bdata = serializeAction action
+        C.hPut handle bdata
+        go handle (size + C.length bdata) maxSize
 
     rebuildLog  = do
         kvStore  <- readMVar mkvStore
@@ -73,8 +76,14 @@ logger mkvStore filename chan = do
         mapM_ (write temp . snd) list
         renameFile "actions.temp" "actions.log"
 
-    write temp entry = 
+    write temp entry =
         C.hPut temp $ serializeAction $ Insert entry
+
+
+    hs :: String -> IO (Handle, Int)
+    hs filename = (,)
+          <$> openFile filename AppendMode
+          <*> (fromIntegral.fileSize <$> getFileStatus filename)
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config = do
