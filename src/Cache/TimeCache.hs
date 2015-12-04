@@ -51,8 +51,8 @@ logger mkvStore filename chan = do
     go handle size (10^6)
   where
     go handle size maxSize 
-        | size >= maxSize = handleOverflow handle maxSize >>= appendData
-        | otherwise       = appendData (handle, size, maxSize)
+        | size >= maxSize = handleOverflow handle maxSize >>= appendActon
+        | otherwise       = appendActon (handle, size, maxSize)
 
     handleOverflow handle maxSize = do
         putStrLn "Rebuilding log"
@@ -63,7 +63,7 @@ logger mkvStore filename chan = do
            then return (handle, size, (maxSize * 10))
            else return (handle, size, maxSize)
 
-    appendData (handle, size, maxSize) = do
+    appendActon (handle, size, maxSize) = do
         action  <- readChan chan
         let bdata = serializeAction action
         C.hPut handle bdata
@@ -76,14 +76,12 @@ logger mkvStore filename chan = do
         mapM_ (write temp . snd) list
         renameFile "actions.temp" "actions.log"
 
-    write temp entry =
-        C.hPut temp $ serializeAction $ Insert entry
-
+    write temp entry = C.hPut temp $ serializeAction $ Insert entry
 
     hs :: String -> IO (Handle, Int)
     hs filename = (,)
-          <$> openFile filename AppendMode
-          <*> (fromIntegral.fileSize <$> getFileStatus filename)
+              <$> openFile filename AppendMode
+              <*> (fromIntegral.fileSize <$> getFileStatus filename)
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config = do
