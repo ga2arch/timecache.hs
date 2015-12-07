@@ -71,14 +71,13 @@ logger mkvStore filename chan = do
 
     rebuildLog  = do
         kvStore  <- readMVar mkvStore
-        temp     <- openFile "actions.temp" WriteMode
-        hSetBuffering temp NoBuffering
-        list     <- H.toList kvStore
-        mapM_ (write temp . snd) list
-        hClose temp
+        withFile "actions.temp" WriteMode $ \temp -> do
+            hSetBuffering temp NoBuffering
+            list  <- H.toList kvStore
+            mapM_ (write temp . snd) list
         renameFile "actions.temp" "actions.log"
 
-    write temp entry = C.hPut temp $ serializeAction $ Insert entry
+    write h = C.hPut h . serializeAction . Insert
 
     hs :: String -> IO (Handle, Int)
     hs filename = do
