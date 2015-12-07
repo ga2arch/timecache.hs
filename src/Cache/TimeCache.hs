@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -37,7 +38,6 @@ restoreEntries = do
         case deserialize content of
             Left err      -> return ()
             Right actions -> mapM_ f actions
-
   where
     f (Insert entry) = do
         now <- liftIO $ round <$> getPOSIXTime
@@ -48,11 +48,11 @@ restoreEntries = do
 logger :: MVar KVStore -> String -> Chan Action -> IO ()
 logger mkvStore filename chan = do
     (handle, size) <- hs filename
-    go handle size (10^6)
+    go handle size (10^5)
   where
     go handle size maxSize 
-        | size >= maxSize = handleOverflow handle maxSize >>= appendActon
-        | otherwise       = appendActon (handle, size, maxSize)
+        | size >= maxSize = handleOverflow handle maxSize >>= appendAction
+        | otherwise       = appendAction (handle, size, maxSize)
 
     handleOverflow handle maxSize = do
         putStrLn "Rebuilding log"
@@ -60,11 +60,11 @@ logger mkvStore filename chan = do
         rebuildLog
         (handle, size) <- hs filename
         if size >= maxSize
-           then return (handle, size, (maxSize * 10))
-           else return (handle, size, maxSize)
+           then return (handle, size, (maxSize * 2))
+           else return (handle, size, 10^5)
 
-    appendActon (handle, size, maxSize) = do
-        action  <- readChan chan
+    appendAction (handle, size, maxSize) = do
+        !action  <- readChan chan
         let bdata = serializeAction action
         C.hPut handle bdata
         go handle (size + C.length bdata) maxSize
@@ -72,16 +72,20 @@ logger mkvStore filename chan = do
     rebuildLog  = do
         kvStore  <- readMVar mkvStore
         temp     <- openFile "actions.temp" WriteMode
+        hSetBuffering temp NoBuffering
         list     <- H.toList kvStore
         mapM_ (write temp . snd) list
+        hClose temp
         renameFile "actions.temp" "actions.log"
 
     write temp entry = C.hPut temp $ serializeAction $ Insert entry
 
     hs :: String -> IO (Handle, Int)
-    hs filename = (,)
-              <$> openFile filename AppendMode
-              <*> (fromIntegral.fileSize <$> getFileStatus filename)
+    hs filename = do
+        handle <- openFile filename AppendMode
+        hSetBuffering handle NoBuffering
+        size   <- fromIntegral.fileSize <$> getFileStatus filename
+        return (handle, size)
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config = do

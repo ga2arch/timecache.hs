@@ -53,7 +53,7 @@ evictEntry e@(TimeEntry key value _) = do
 
 cacheEntry :: TimeEntry -> TimeCache ()
 cacheEntry entry@(TimeEntry key value time) = do
-    liftIO $ putStrLn $ "Caching: " ++ show entry
+    --liftIO $ putStrLn $ "Caching: " ++ show entry
 
     start    <- getStart
     mkvStore <- getKVStore
@@ -120,7 +120,7 @@ insertEntry entry = do
 
 deleteEntry :: Key -> TimeCache ()
 deleteEntry key = do
-    liftIO $ putStrLn $ "Deleting key: " ++ show key
+    --liftIO $ putStrLn $ "Deleting key: " ++ show key
     mkvStore <- getKVStore
     liftIO $ do
         kvStore <- takeMVar mkvStore

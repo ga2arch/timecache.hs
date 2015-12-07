@@ -19,7 +19,7 @@ config = TimeCacheConfig
         <> help "The url of the hook")
 
     <*> option auto
-        ( long "interval"
+        (  long "interval"
         <> metavar "TIME"
         <> value 1
         <> help "The interval between two checks")
