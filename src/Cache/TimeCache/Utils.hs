@@ -53,7 +53,7 @@ evictEntry e@(TimeEntry key value _) = do
 
 cacheEntry :: TimeEntry -> TimeCache ()
 cacheEntry entry@(TimeEntry key value time) = do
-    --liftIO $ putStrLn $ "Caching: " ++ show entry
+    liftIO $ putStrLn $ "Caching: " ++ show entry
 
     start    <- getStart
     mkvStore <- getKVStore
@@ -120,14 +120,22 @@ insertEntry entry = do
 
 deleteEntry :: Key -> TimeCache ()
 deleteEntry key = do
-    --liftIO $ putStrLn $ "Deleting key: " ++ show key
-    mkvStore <- getKVStore
-    liftIO $ do
-        kvStore <- takeMVar mkvStore
-        H.delete kvStore key
-        putMVar mkvStore kvStore
-
+    liftIO $ putStrLn $ "Deleting key: " ++ show key
+    deleteKey key
     appendLog $ Delete key
+
+deleteEntries :: Key -> TimeCache ()
+deleteEntries prefix = do
+    mkvStore <- getKVStore
+    kvStore <- liftIO $ takeMVar mkvStore
+    entries <- liftIO $ H.toList kvStore
+    mapM_ (f kvStore) entries
+    liftIO $ putMVar mkvStore kvStore
+  where
+    f kvStore (k, v) = when (C.isPrefixOf prefix k) $ do
+        liftIO $ putStrLn $ "Deleting key: " ++ show k
+        liftIO $ H.delete kvStore k
+        appendLog $ Delete k
 
 getEntry :: Key -> TimeCache (Maybe TimeEntry)
 getEntry key = do
@@ -139,8 +147,8 @@ getEntry key = do
             Just me -> return $ Just me
             Nothing -> return Nothing
 
-deleteKeyFromStore :: Key -> TimeCache ()
-deleteKeyFromStore key = do
+deleteKey :: Key -> TimeCache ()
+deleteKey key = do
     mkvStore <- getKVStore
     liftIO $ do
         kvStore <- takeMVar mkvStore

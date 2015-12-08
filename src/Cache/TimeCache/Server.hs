@@ -46,11 +46,16 @@ server = do
         lift $ deleteEntry key
         SCT.status status200
 
+    SCT.delete "/prefix/:prefix" $ do
+        prefix <- SCT.param "prefix"
+        lift $ deleteEntries prefix
+        SCT.status status200
+
     SCT.get "/entries/:key" $ do
         key <- SCT.param "key"
         entry <- lift $ getEntry key
         case entry of
-            Just e  -> SCT.raw . B.fromStrict $ timeEntryValue e
+            Just e  -> SCT.raw (B.fromStrict $ timeEntryValue e)
             Nothing -> SCT.status status404
 
 runHttpServer :: TimeCache ()

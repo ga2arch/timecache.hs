@@ -43,7 +43,7 @@ restoreEntries = do
         now <- liftIO $ round <$> getPOSIXTime
         when (timeEntryTimestamp entry >= now) $ cacheEntry entry
 
-    f (Delete key) = deleteKeyFromStore key
+    f (Delete key) = deleteKey key
 
 logger :: MVar KVStore -> String -> Chan Action -> IO ()
 logger mkvStore filename chan = do
