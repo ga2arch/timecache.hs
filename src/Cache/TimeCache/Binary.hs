@@ -19,12 +19,11 @@ import Data.Bits
 serializeEntry (TimeEntry key value time) = do
     let keySize   = sizeToWords $ B.length key
     let valueSize = sizeToWords $ B.length value
-    let b = fromWrite $ writeSize keySize
+    writeToByteString $ writeSize keySize
             <> writeByteString key
             <> writeSize valueSize
             <> writeByteString value
             <> writeWord64be (fromIntegral time)
-    toByteString b
 
 writeSize (x, 0, 0, 0) = writeWord8 x
 writeSize (x, a, b, 0) = mconcat [writeWord8 x, writeWord8 a, writeWord8 b]
@@ -48,16 +47,13 @@ words8toWord16 a b = (fromIntegral  b) `shiftL` 8 .|. (fromIntegral a)
 
 serializeAction (Insert entry) = do
     let e = serializeEntry entry
-    let b = fromWrite $ writeWord8 0
-            <> writeByteString e
-    toByteString b
+    writeToByteString $ writeWord8 0 <> writeByteString e
 
 serializeAction (Delete key) = do
     let size = sizeToWords $ B.length key
-    let b = fromWrite $ writeWord8 1
+    writeToByteString $ writeWord8 1
             <> writeSize size
-            <> writeByteString key 
-    toByteString b
+            <> writeByteString key
 
 deserialize = parseOnly (many' actionParser)
 
@@ -81,7 +77,7 @@ parseSize = do
         size -> return size
 
 insertParser = do
-    keySize   <- parseSize 
+    keySize   <- parseSize
     key       <- take $ fromIntegral keySize
     valueSize <- parseSize
     value     <- take $ fromIntegral valueSize
