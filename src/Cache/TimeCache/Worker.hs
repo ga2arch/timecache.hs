@@ -9,14 +9,17 @@ import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Control.Concurrent
 import           Control.Concurrent.Async
+import           Control.Concurrent.STM
 import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.State
-import qualified Data.HashTable.IO           as H
 import           Data.IORef
-import           Data.Text                   (Text, unpack)
+import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           GHC.Conc.Sync
+import qualified ListT                    as LT
+import qualified STMContainers.Map        as M
+import qualified STMContainers.Set        as S
 import           System.Posix.Unistd
 
 worker :: TimeCache ()
@@ -32,20 +35,17 @@ worker = do
         mbuckets <- getBuckets
         interval <- getInterval
 
-        liftIO $ do
-            buckets <- takeMVar mbuckets
+        keys <- liftIO $ atomically $ do
+              buckets <- readTVar mbuckets
 
-            res <- H.lookup buckets now
-            case res of
-                Just bucket -> do
-                    H.delete buckets now
-                    putMVar mbuckets buckets
+              res <- M.lookup now buckets
+              case res of
+                  Just bucket -> do
+                      M.delete now buckets
+                      LT.toList $ S.stream bucket
+                  Nothing -> return $ LT.fromFoldable []
 
-                    void . liftIO . async $ do
-                        H.mapM_ (runT config state . evictKey . fst) bucket
-
-                Nothing -> do
-                    putMVar mbuckets buckets
+        liftIO $ async $ runT config state $ mapM_ evictByKey keys
 
         nnow <- liftIO $ do
             threadDelay $ interval*10^6
@@ -54,10 +54,10 @@ worker = do
         --liftIO $ print $ show nnow
         handle now nnow
 
-    evictKey :: Key -> TimeCache ()
-    evictKey key = do
-        entry <- getEntry key
+    evictByKey :: Key -> TimeCache ()
+    evictByKey key = do
+       entry <- getEntry key
 
-        case entry of
-            Just e  -> evictEntry e
-            Nothing -> return ()
+       case entry of
+           Just e  -> evictEntry e
+           Nothing -> return ()

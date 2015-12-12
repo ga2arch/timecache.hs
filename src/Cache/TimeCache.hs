@@ -1,4 +1,4 @@
-{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE BangPatterns        #-}
 
 {-# LANGUAGE FlexibleContexts    #-}
 {-# LANGUAGE OverloadedStrings   #-}
@@ -14,20 +14,24 @@ import           Cache.TimeCache.Types
 import           Cache.TimeCache.Utils
 import           Cache.TimeCache.Worker
 import           Control.Concurrent
-import           Control.Concurrent.Chan
 import           Control.Concurrent.Async
-import           Control.Monad            (when)
-import           Control.Monad.Reader     (runReaderT)
-import           Control.Monad.State      (evalStateT, get, put)
-import           Control.Monad.Trans      (liftIO)
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString.Char8    as C
-import qualified Data.HashTable.IO        as H
-import           Data.Time.Clock.POSIX    (getPOSIXTime)
+import           Control.Concurrent.Chan
+import           Control.Concurrent.STM
+import           Control.Concurrent.STM.TChan
+import           Control.Concurrent.STM.TVar
+import           Control.Monad                (when)
+import           Control.Monad.Reader         (runReaderT)
+import           Control.Monad.State          (evalStateT, get, put)
+import           Control.Monad.Trans          (liftIO)
+import           Data.ByteString              (ByteString)
+import qualified Data.ByteString.Char8        as C
+import           Data.Time.Clock.POSIX        (getPOSIXTime)
+import qualified ListT                        as LT
+import qualified STMContainers.Map            as M
 import           System.Directory
 import           System.IO
-import           System.Posix.Signals
 import           System.Posix
+import           System.Posix.Signals
 
 restoreEntries :: TimeCache ()
 restoreEntries = do
@@ -45,12 +49,12 @@ restoreEntries = do
 
     f (Delete key) = deleteKey key
 
-logger :: MVar KVStore -> String -> Chan Action -> IO ()
+logger :: TVar KVStore -> String -> TChan Action -> IO ()
 logger mkvStore filename chan = do
     (handle, size) <- hs filename
     go handle size (10^5)
   where
-    go handle size maxSize 
+    go handle size maxSize
         | size >= maxSize = handleOverflow handle maxSize >>= appendAction
         | otherwise       = appendAction (handle, size, maxSize)
 
@@ -64,16 +68,17 @@ logger mkvStore filename chan = do
            else return (handle, size, 10^5)
 
     appendAction (handle, size, maxSize) = do
-        !action  <- readChan chan
+        !action  <- atomically $ readTChan chan
         let bdata = serializeAction action
         C.hPut handle bdata
         go handle (size + C.length bdata) maxSize
 
     rebuildLog  = do
-        kvStore  <- readMVar mkvStore
         withFile "actions.temp" WriteMode $ \temp -> do
             hSetBuffering temp NoBuffering
-            list  <- H.toList kvStore
+            list  <- atomically $ do
+                kvStore  <- readTVar mkvStore
+                LT.toList $ M.stream kvStore
             mapM_ (write temp . snd) list
         renameFile "actions.temp" "actions.log"
 
@@ -88,9 +93,9 @@ logger mkvStore filename chan = do
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config = do
-    kvstore <- H.new >>= newMVar
-    buckets <- H.new >>= newMVar
-    chan    <- newChan
+    kvstore <- M.newIO >>= newTVarIO
+    buckets <- M.newIO >>= newTVarIO
+    chan    <- newTChanIO
     start   <- round <$> getPOSIXTime
 
     let state = TimeCacheState start kvstore buckets chan
