@@ -1,6 +1,3 @@
-{-# LANGUAGE FlexibleContexts    #-}
-{-# LANGUAGE LambdaCase          #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 module Cache.TimeCache.Worker
     ( worker
     ) where

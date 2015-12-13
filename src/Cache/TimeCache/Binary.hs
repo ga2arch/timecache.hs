@@ -5,15 +5,16 @@ import           Blaze.ByteString.Builder.ByteString
 import           Blaze.ByteString.Builder.Int
 import           Blaze.ByteString.Builder.Word
 import           Cache.TimeCache.Types
+import           Control.Applicative                 ((<|>))
 import           Data.Attoparsec.Binary
 import           Data.Attoparsec.ByteString
 import           Data.Attoparsec.ByteString.Char8
+import           Data.Bits
 import qualified Data.ByteString                     as B
-import qualified Data.ByteString.Char8 as C
+import qualified Data.ByteString.Char8               as C
 import           Data.Monoid
 import           Data.Word
 import           Prelude                             hiding (take)
-import Data.Bits
 
 -- |size|key|size|value|time|
 serializeEntry (TimeEntry key value time) = do
@@ -55,7 +56,15 @@ serializeAction (Delete key) = do
             <> writeSize size
             <> writeByteString key
 
-deserialize = parseOnly (many' actionParser)
+deserialize :: C.ByteString -> [Action]
+deserialize input = do
+    go [] (Just input)
+  where
+    go actions Nothing = actions
+    go actions (Just input) = do
+        case parse actionParser input of
+          Done r action -> go (action:actions) (Just r)
+          _ -> go actions Nothing
 
 parseSize = do
     header <- anyWord8
@@ -72,11 +81,12 @@ parseSize = do
 
             let half = words8toWord16 s1 s2
             let size = ((fromIntegral s3) `shiftL` 16 .|. (fromIntegral half)) :: Int
-            return $ fromIntegral size
+            return $! fromIntegral size
 
         size -> return size
 
 insertParser = do
+    word8 0
     keySize   <- parseSize
     key       <- take $ fromIntegral keySize
     valueSize <- parseSize
@@ -85,12 +95,9 @@ insertParser = do
     return $! Insert $ TimeEntry key value $ fromIntegral timestamp
 
 deleteParser = do
+    word8 1
     keySize <- parseSize
     key     <- take $ fromIntegral keySize
     return $! Delete key
 
-actionParser = do
-    action <- anyWord8
-    case fromIntegral action of
-        0 -> insertParser
-        1 -> deleteParser
+actionParser = insertParser <|> deleteParser

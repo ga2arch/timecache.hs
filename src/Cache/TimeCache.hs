@@ -35,9 +35,7 @@ restoreEntries = do
     when exists $ do
         liftIO $ putStrLn "Restoring entries"
         content <- liftIO $ C.readFile "actions.log"
-        case deserialize content of
-            Left err      -> return ()
-            Right actions -> mapM_ f actions
+        mapM_ f $ deserialize content
   where
     f (Insert entry) = do
         now <- liftIO $ round <$> getPOSIXTime
