@@ -16,31 +16,32 @@ author: Gabriele Carrettoni
 executable timecache
     main-is: Main.hs
     build-depends:
-        base >=4.7 && <5,
-        streaming-commons -any,
-        bytestring -any,
-        transformers -any,
-        unordered-containers -any,
-        time -any,
-        hashable -any,
-        async -any,
-        scotty -any,
-        text -any,
-        monad-logger -any,
-        mtl -any,
-        http-types -any,
-        http-client -any,
-        string-conversions -any,
-        unix -any,
-        exceptions -any,
-        optparse-applicative -any,
-        monad-control -any,
-        transformers-base -any,
-        directory -any,
-                  hashtables -any,
-                  blaze-builder -any,
-                  attoparsec -any,
-                  attoparsec-binary -any
+                    async -any
+                  , attoparsec -any
+                  , attoparsec-binary -any
+                  , base >=4.7 && <5
+                  , blaze-builder -any
+                  , bytestring -any
+                  , containers >= 0.5.6.2
+                  , directory -any
+                  , exceptions -any
+                  , hashable -any
+                  , hashtables -any
+                  , http-client -any
+                  , http-types -any
+                  , monad-control -any
+                  , monad-logger -any
+                  , mtl -any
+                  , optparse-applicative -any
+                  , scotty -any
+                  , streaming-commons -any
+                  , string-conversions -any
+                  , text -any
+                  , time -any
+                  , transformers -any
+                  , transformers-base -any
+                  , unix -any
+                  , unordered-containers -any
 
     default-language: Haskell2010
     hs-source-dirs: src

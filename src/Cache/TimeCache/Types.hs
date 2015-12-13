@@ -47,23 +47,23 @@ type KVStore   = HashTable Key TimeEntry
 type Buckets   = HashTable Timestamp (HashTable Key ())
 
 data TimeEntry = TimeEntry {
-    timeEntryKey       :: !Key
-,   timeEntryValue     :: !Value
-,   timeEntryTimestamp :: !Timestamp
-} deriving (Show, Read)
+     timeEntryKey       :: !Key
+ ,   timeEntryValue     :: !Value
+ ,   timeEntryTimestamp :: !Timestamp
+ } deriving (Show, Read)
 
 data TimeCacheConfig = TimeCacheConfig {
-    port     :: Int
-,   hook     :: Text
-,   interval :: Int
-}
+     port     :: Int
+ ,   hook     :: Text
+ ,   interval :: Int
+ }
 
 data TimeCacheState = TimeCacheState {
-    start   :: Timestamp
-,   kvStore :: MVar KVStore
-,   buckets :: MVar Buckets
-,   chan    :: Chan Action
-}
+     start   :: Timestamp
+ ,   kvStore :: MVar KVStore
+ ,   buckets :: MVar Buckets
+ ,   chan    :: Chan Action
+ }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
     deriving (Functor, Applicative, Monad, MonadThrow,

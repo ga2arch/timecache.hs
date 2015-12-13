@@ -1,4 +1,8 @@
-module Cache.TimeCache.Binary where
+{-# LANGUAGE OverloadedStrings #-}
+module Cache.TimeCache.Binary
+       ( serializeAction
+       , deserialize
+       ) where
 
 import           Blaze.ByteString.Builder
 import           Blaze.ByteString.Builder.ByteString
@@ -15,6 +19,7 @@ import qualified Data.ByteString.Char8               as C
 import           Data.Monoid
 import           Data.Word
 import           Prelude                             hiding (take)
+import qualified Data.Sequence as S
 
 -- |size|key|size|value|time|
 serializeEntry (TimeEntry key value time) = do
@@ -56,15 +61,15 @@ serializeAction (Delete key) = do
             <> writeSize size
             <> writeByteString key
 
-deserialize :: C.ByteString -> [Action]
+deserialize :: C.ByteString -> S.Seq Action
 deserialize input = do
-    go [] (Just input)
+    go S.empty input
   where
-    go actions Nothing = actions
-    go actions (Just input) = do
+    go actions "" = actions
+    go actions input = do
         case parse actionParser input of
-          Done r action -> go (action:actions) (Just r)
-          _ -> go actions Nothing
+          Done r action -> go (actions S.|> action) r
+          _ -> go actions ""
 
 parseSize = do
     header <- anyWord8
