@@ -16,7 +16,6 @@ import           Control.Monad.Logger
 import           Control.Monad.Reader
 import           Control.Monad.State
 import qualified Data.ByteString.Lazy      as B
-import qualified Data.HashTable.IO         as H
 import           Data.Maybe                (listToMaybe)
 import           Data.String.Conversions
 import           Data.Text                 (Text, pack)

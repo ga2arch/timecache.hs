@@ -16,7 +16,7 @@ author: Gabriele Carrettoni
 executable timecache
     main-is: Main.hs
     build-depends:
-                      async -any
+                        async -any
                   , attoparsec -any
                   , attoparsec-binary -any
                   , base >=4.7 && <5
@@ -24,8 +24,6 @@ executable timecache
                   , bytestring -any
                   , directory -any
                   , exceptions -any
-                  , hashable -any
-                  , hashtables -any
                   , http-client -any
                   , http-types -any
                   , list-t >= 0.4.5.1
@@ -35,7 +33,7 @@ executable timecache
                   , optparse-applicative -any
                   , scotty -any
                   , stm >= 2.4.4
-                  , stm-containers -any
+                  , stm-chans >= 3.0.0.4
                   , streaming-commons -any
                   , string-conversions -any
                   , text -any

@@ -28,7 +28,7 @@ module Cache.TimeCache.Types
 import           Control.Concurrent.Chan
 import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TChan
+import           Control.Concurrent.STM.TBChan
 import           Control.Concurrent.STM.TVar
 import           Control.Monad.Base
 import           Control.Monad.Catch
@@ -38,18 +38,17 @@ import           Control.Monad.State
 import           Control.Monad.Trans.Control
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as B
-import qualified Data.HashTable.IO            as H
+import qualified Data.HashMap.Strict          as H
+import qualified Data.HashSet                 as S
 import           Data.Text                    (Text, unpack)
 import           GHC.IO.Handle
-import qualified STMContainers.Map            as M
-import qualified STMContainers.Set            as S
 
-type HashTable k v = H.CuckooHashTable k v
+type HashTable k v = H.HashMap k v
 type Key       = ByteString
 type Value     = ByteString
 type Timestamp = Int
-type KVStore   = M.Map Key TimeEntry
-type Buckets   = M.Map Timestamp (S.Set Key)
+type KVStore   = HashTable Key TimeEntry
+type Buckets   = HashTable Timestamp (TVar (S.HashSet Key))
 
 data TimeEntry = TimeEntry {
      timeEntryKey       :: !Key
@@ -67,7 +66,7 @@ data TimeCacheState = TimeCacheState {
      start   :: Timestamp
  ,   kvStore :: TVar KVStore
  ,   buckets :: TVar Buckets
- ,   chan    :: TChan Action
+ ,   chan    :: TBChan Action
  }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
@@ -102,7 +101,7 @@ getBuckets = gets buckets
 getKVStore :: TimeCache (TVar KVStore)
 getKVStore = gets kvStore
 
-getChan :: TimeCache (TChan Action)
+getChan :: TimeCache (TBChan Action)
 getChan = gets chan
 
 getStart :: TimeCache Timestamp

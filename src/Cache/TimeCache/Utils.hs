@@ -6,7 +6,7 @@ module Cache.TimeCache.Utils where
 
 import           Cache.TimeCache.Binary
 import           Cache.TimeCache.Types
-import           Control.Concurrent.Chan
+import           Control.Concurrent.STM.TBChan
 import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
 import qualified Control.Exception          as E
@@ -24,8 +24,8 @@ import           Data.Text                  (Text, unpack)
 import qualified ListT                      as LT
 import           Network.HTTP.Client
 import           Network.HTTP.Types.Status
-import qualified STMContainers.Map          as M hiding (Key, Value)
-import qualified STMContainers.Set          as S
+import qualified Data.HashMap.Strict              as M
+import qualified Data.HashSet          as S
 
 post :: Value -> TimeCache (Either HttpException Bool)
 post value = do
@@ -74,45 +74,44 @@ cacheEntry entry@(TimeEntry key value time) = do
 
     liftIO $ atomically $ do
         kvStore <- readTVar mkvStore
-        buckets <- readTVar mbuckets
 
-        res <- M.lookup key kvStore
-        case res of
+        case M.lookup key kvStore of
             Just entry -> do
-                M.insert correctedEntry key kvStore
+                writeTVar mkvStore $! M.insert key correctedEntry kvStore
 
                 let oldTime = timeEntryTimestamp entry
                 when (oldTime /= newTime) $ do
-                    moveBucket buckets key oldTime newTime
+                    moveBucket mbuckets key oldTime newTime
 
             Nothing -> do
-                M.insert correctedEntry key kvStore
-                insertIntoBucket buckets key newTime
+                writeTVar mkvStore $! M.insert key correctedEntry kvStore
+                insertIntoBucket mbuckets key newTime
     return ()
   where
-    moveBucket :: Buckets -> Key -> Timestamp -> Timestamp -> STM ()
-    moveBucket buckets key oldTime newTime = do
-        res <- M.lookup oldTime buckets
-        case res of
-            Just bucket -> S.delete key bucket
+    moveBucket :: TVar Buckets -> Key -> Timestamp -> Timestamp -> STM ()
+    moveBucket mbuckets key oldTime newTime = do
+        buckets <- readTVar mbuckets
+        case M.lookup oldTime buckets of
+            Just bucket -> do
+                modifyTVar' bucket $ S.delete key
             Nothing      -> return ()
 
-        insertIntoBucket buckets key newTime
+        insertIntoBucket mbuckets key newTime
 
-    insertIntoBucket :: Buckets -> Key -> Timestamp -> STM ()
-    insertIntoBucket buckets key time = do
-        res <- M.lookup time buckets
-        case res of
-            Just bucket -> S.insert key bucket
+    insertIntoBucket :: TVar Buckets -> Key -> Timestamp -> STM ()
+    insertIntoBucket mbuckets key time = do
+        buckets <- readTVar mbuckets
+        case M.lookup time buckets of
+            Just bucket -> modifyTVar' bucket $ S.insert key
+
             Nothing -> do
-                bucket <- S.new
-                S.insert key bucket
-                M.insert bucket time buckets
+                bucket <- newTVar (S.fromList [key])
+                modifyTVar' mbuckets $ M.insert time bucket
 
 appendLog :: Action -> TimeCache ()
 appendLog action = do
     chan <- getChan
-    liftIO $ atomically $ writeTChan chan action
+    liftIO $ atomically $ writeTBChan chan action
 
 insertEntry :: TimeEntry -> TimeCache ()
 insertEntry entry = do
@@ -132,21 +131,20 @@ deleteEntries prefix = do
 
     liftIO $ atomically $ do
        kvStore <- readTVar mkvStore
-       entries <- LT.toList $ M.stream kvStore
-       mapM_ (f kvStore chan) entries
+       let entries = M.toList kvStore
+       mapM_ (f mkvStore chan) entries
   where
-    f kvStore chan (k, v) = when (C.isPrefixOf prefix k) $ do
+    f mkvStore chan (k, v) = when (C.isPrefixOf prefix k) $ do
         --liftIO $ putStrLn $ "Deleting key: " ++ show k
-        M.delete k kvStore
-        writeTChan chan $ Delete k
+        modifyTVar' mkvStore $ M.delete k
+        writeTBChan chan $ Delete k
 
 getEntry :: Key -> TimeCache (Maybe TimeEntry)
 getEntry key = do
     mkvStore <- getKVStore
     liftIO $ atomically $ do
         kvStore <- readTVar mkvStore
-        res <- M.lookup key kvStore
-        case res of
+        case M.lookup key kvStore of
             Just me -> return $ Just me
             Nothing -> return Nothing
 
@@ -154,5 +152,4 @@ deleteKey :: Key -> TimeCache ()
 deleteKey key = do
     mkvStore <- getKVStore
     liftIO $ atomically $ do
-        kvStore <- readTVar mkvStore
-        M.delete key kvStore
+        modifyTVar' mkvStore $ M.delete key

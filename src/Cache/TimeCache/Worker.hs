@@ -18,8 +18,8 @@ import           Data.Text                (Text, unpack)
 import           Data.Time.Clock.POSIX
 import           GHC.Conc.Sync
 import qualified ListT                    as LT
-import qualified STMContainers.Map        as M
-import qualified STMContainers.Set        as S
+import qualified Data.HashMap.Strict        as M
+import qualified Data.HashSet        as S
 import           System.Posix.Unistd
 
 worker :: TimeCache ()
@@ -37,13 +37,12 @@ worker = do
 
         keys <- liftIO $ atomically $ do
               buckets <- readTVar mbuckets
-
-              res <- M.lookup now buckets
-              case res of
+              case M.lookup now buckets of
                   Just bucket -> do
-                      M.delete now buckets
-                      LT.toList $ S.stream bucket
-                  Nothing -> return $ LT.fromFoldable []
+                      writeTVar mbuckets $ M.delete now buckets
+                      b <- readTVar bucket
+                      return $ S.toList b
+                  Nothing -> return []
 
         liftIO $ async $ runT config state $ mapM_ evictByKey keys
 

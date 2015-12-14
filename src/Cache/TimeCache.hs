@@ -17,7 +17,7 @@ import           Control.Concurrent
 import           Control.Concurrent.Async
 import           Control.Concurrent.Chan
 import           Control.Concurrent.STM
-import           Control.Concurrent.STM.TChan
+import           Control.Concurrent.STM.TBChan
 import           Control.Concurrent.STM.TVar
 import           Control.Monad                (when)
 import           Control.Monad.Reader         (runReaderT)
@@ -27,7 +27,7 @@ import           Data.ByteString              (ByteString)
 import qualified Data.ByteString.Char8        as C
 import           Data.Time.Clock.POSIX        (getPOSIXTime)
 import qualified ListT                        as LT
-import qualified STMContainers.Map            as M
+import qualified Data.HashMap.Strict            as M
 import           System.Directory
 import           System.IO
 import           System.Posix
@@ -49,7 +49,7 @@ restoreEntries = do
 
     f (Delete key) = deleteKey key
 
-logger :: TVar KVStore -> String -> TChan Action -> IO ()
+logger :: TVar KVStore -> String -> TBChan Action -> IO ()
 logger mkvStore filename chan = do
     (handle, size) <- hs filename
     go handle size (10^5)
@@ -68,7 +68,7 @@ logger mkvStore filename chan = do
            else return (handle, size, 10^5)
 
     appendAction (handle, size, maxSize) = do
-        !action  <- atomically $ readTChan chan
+        !action  <- atomically $ readTBChan chan
         let bdata = serializeAction action
         C.hPut handle bdata
         go handle (size + C.length bdata) maxSize
@@ -76,9 +76,7 @@ logger mkvStore filename chan = do
     rebuildLog  = do
         withFile "actions.temp" WriteMode $ \temp -> do
             hSetBuffering temp NoBuffering
-            list  <- atomically $ do
-                kvStore  <- readTVar mkvStore
-                LT.toList $ M.stream kvStore
+            list <- atomically $ M.toList <$> readTVar mkvStore
             mapM_ (write temp . snd) list
         renameFile "actions.temp" "actions.log"
 
@@ -93,9 +91,9 @@ logger mkvStore filename chan = do
 
 runTimeCache :: TimeCacheConfig -> IO ()
 runTimeCache config = do
-    kvstore <- M.newIO >>= newTVarIO
-    buckets <- M.newIO >>= newTVarIO
-    chan    <- newTChanIO
+    kvstore <- newTVarIO M.empty
+    buckets <- newTVarIO M.empty
+    chan    <- newTBChanIO 100
     start   <- round <$> getPOSIXTime
 
     let state = TimeCacheState start kvstore buckets chan
