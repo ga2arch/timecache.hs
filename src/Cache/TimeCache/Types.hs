@@ -19,6 +19,7 @@ module Cache.TimeCache.Types
     , getHook
     , getPort
     , getInterval
+    , getLogMaxSize
     , getBuckets
     , getKVStore
     , getChan
@@ -57,9 +58,10 @@ data TimeEntry = TimeEntry {
  } deriving (Show, Read)
 
 data TimeCacheConfig = TimeCacheConfig {
-     port     :: Int
- ,   hook     :: Text
- ,   interval :: Int
+     port        :: Int
+ ,   hook        :: Text
+ ,   interval    :: Int
+ ,   logMaxSize  :: Int
  }
 
 data TimeCacheState = TimeCacheState {
@@ -70,17 +72,17 @@ data TimeCacheState = TimeCacheState {
  }
 
 newtype TimeCache a = T { unT :: ReaderT TimeCacheConfig (StateT TimeCacheState IO) a}
-    deriving (Functor, Applicative, Monad, MonadThrow,
-              MonadReader TimeCacheConfig, MonadBase IO,
-              MonadState TimeCacheState, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadThrow,
+            MonadReader TimeCacheConfig, MonadBase IO,
+            MonadState TimeCacheState, MonadIO)
 
 instance MonadBaseControl IO TimeCache where
-    type StM TimeCache a = (a, TimeCacheState)
-    liftBaseWith f = T . liftBaseWith $ \run -> f (run . unT)
-    restoreM       = T . restoreM
+  type StM TimeCache a = (a, TimeCacheState)
+  liftBaseWith f = T . liftBaseWith $ \run -> f (run . unT)
+  restoreM       = T . restoreM
 
 data Action = Insert TimeEntry | Delete Key
-    deriving (Show, Read)
+  deriving (Show, Read)
 
 
 runT :: TimeCacheConfig -> TimeCacheState -> TimeCache a -> IO a
@@ -94,6 +96,9 @@ getPort = asks port
 
 getInterval :: TimeCache Int
 getInterval = asks interval
+
+getLogMaxSize :: TimeCache Int
+getLogMaxSize = asks logMaxSize
 
 getBuckets :: TimeCache (TVar Buckets)
 getBuckets = gets buckets

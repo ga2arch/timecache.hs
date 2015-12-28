@@ -23,6 +23,12 @@ config = TimeCacheConfig
         <> metavar "TIME"
         <> value 1
         <> help "The interval between two checks")
+
+    <*> option auto
+        ( long "log-maxsize"
+        <> metavar "SIZE"
+        <> value (10^6)
+        <> help "The MAX size of the log file before a rebuild")
   where
     txtOption = fmap pack . strOption
 

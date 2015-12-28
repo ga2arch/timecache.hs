@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Cache.TimeCache.Binary
        ( serializeAction
+       , serializeEntry
        , deserialize
        ) where
 
